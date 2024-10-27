@@ -67,6 +67,23 @@ public static class ManagingFunctions
         }
     }
 
+    public static Dictionary<string, string> CreateArgsSingle(string key, string value)
+    {
+        Dictionary<string, string> args = new Dictionary<string, string>
+        {
+            { key, value }
+        };
+        return args;
+    }
+
+    public static Dictionary<string, string> CreateArgs(string[] keys, string[] values)
+    {
+        Dictionary<string, string> args = new Dictionary<string, string>();
+        for (int i = 0; i < keys.Length; i++)
+            args.Add(keys[i], values[i]);
+        return args;
+    }
+
     public static bool InsideRanges(Vector2 position, Vector2 min, Vector2 max)
     {
         bool returnn = true;
@@ -76,6 +93,45 @@ public static class ManagingFunctions
         if (position.y > max.y) returnn = false;
 
         return returnn;
+    }
+
+    public static Vector2 MoveTowardsTarget(Vector2 current, Vector2 target, float velocity)
+    {
+        // Calculate the direction from current to target
+        Vector2 direction = (target - current).normalized * velocity;
+
+        // Calculate the distance to the target
+        float distance = Vector2.Distance(current, target);
+
+        // Move one unit towards the target, but do not overshoot
+        if (distance < velocity)
+        {
+            return target;
+        }
+        else
+        {
+            return current + direction;
+        }
+    }
+
+    public static int CreateIndex(Vector2Int position)
+    {
+        int x = position.x;
+        if(x < 0)
+        {
+            x += gameManager.WorldWidth * 16;
+        }
+        else if(x > gameManager.WorldWidth * 16)
+        {
+            x -= gameManager.WorldWidth * 16;
+        }
+
+        return position.x * gameManager.WorldHeight + position.y;
+    }
+
+    public static float ClampX(float x)
+    {
+        return x % (gameManager.WorldWidth * 16);
     }
 
     public static int FindIndexInArrayOfVector2(Vector2 vectorToFind, Vector2[] list)
@@ -244,7 +300,7 @@ class MainFunctions : MonoBehaviour
     [SerializeField] GameObject dropReference;
     [SerializeField] GameObject dropContainerReference;
 
-    void Start()
+    private void Awake()
     {
         ManagingFunctions.emptyDrop = dropReference;
         ManagingFunctions.dropContainer = dropContainerReference;

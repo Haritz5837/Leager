@@ -25,12 +25,12 @@ TagManager:
   - EnemyDamageBox
   - IgnoreEntitiesCollision
   - Damager
-  - Slope<
-  - Slope>
-  - FalseBlock
+  - DroppedItem
+  - 
+  - 
   - Ladder
   - Background
-  - 
+  - Node
   - 
   - 
   - 
@@ -43,6 +43,9 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 992468583
     locked: 0
   - name: BehindLecter
     uniqueID: 823596895

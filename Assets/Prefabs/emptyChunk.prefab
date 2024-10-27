@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4012388461021220}
   - component: {fileID: 114729877220749926}
+  - component: {fileID: 50035362822924676}
   m_Layer: 0
   m_Name: emptyChunk
   m_TagString: Untagged
@@ -51,6 +52,7 @@ MonoBehaviour:
   chunkBiome: dumby
   loading: 0
   TileGrid: 
+  BackgroundTileGrid: 
   TilePropertiesArr: []
   LightMap: []
   TileObject: []
@@ -58,8 +60,12 @@ MonoBehaviour:
   childId: 0
   tilesToChunk: 0
   orgX: 0
+  currentX: 0
   entitiesSpawnTime: 0
-  liquidTileGrid: 
+  updateChunk: 0
+  rendering: 1
+  BackgroundTile: {fileID: 1574955019418586, guid: 4860f6c509f0d3448930fb73415c7074,
+    type: 3}
   grassObject: {fileID: 1349882380421944, guid: 0237245838412a8438afe9831b6fdd0e,
     type: 3}
   fireObject: {fileID: 1774782936830166, guid: cd062fb7db861eb498646a4970687d29, type: 3}
@@ -78,6 +84,18 @@ MonoBehaviour:
     type: 3}
   grassThingObject: {fileID: 3194508716061061972, guid: 4b82c662aa2fabe4d9ff2a74d9092c5f,
     type: 3}
+  fallingSandObject: {fileID: 2922841541217916977, guid: d869698c8eab2694b98ed15858739b22,
+    type: 3}
+  bedLeftSideObject: {fileID: 3958546898027053879, guid: d2264d168ec6e5045bf6fe654dd9fd7c,
+    type: 3}
+  bedRightSideObject: {fileID: 9129773542900688025, guid: 51e0bb7c60dfda64a830ccb92db94941,
+    type: 3}
+  energyGenerator: {fileID: 2839788871766195270, guid: 1b1b963234557734c9ec0058bf7b0e56,
+    type: 3}
+  nodeTowerT1: {fileID: 634969063627566776, guid: 74eaba94cc234c0488101f17f0d7a917,
+    type: 3}
+  laserDrill: {fileID: 6174695624009214243, guid: 58502f99805d0804090eed0b62b9c4fc,
+    type: 3}
   waterFrames:
   - {fileID: 21300000, guid: c905cc67012a0a148a83994b33ce68ed, type: 3}
   - {fileID: 21300002, guid: c905cc67012a0a148a83994b33ce68ed, type: 3}
@@ -93,3 +111,24 @@ MonoBehaviour:
   - {fileID: 21300022, guid: c905cc67012a0a148a83994b33ce68ed, type: 3}
   - {fileID: 21300024, guid: c905cc67012a0a148a83994b33ce68ed, type: 3}
   - {fileID: 21300026, guid: c905cc67012a0a148a83994b33ce68ed, type: 3}
+--- !u!50 &50035362822924676
+Rigidbody2D:
+  serializedVersion: 4
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728888408477196}
+  m_BodyType: 2
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 1
+  m_LinearDrag: 0
+  m_AngularDrag: 0.05
+  m_GravityScale: 1
+  m_Material: {fileID: 0}
+  m_Interpolate: 0
+  m_SleepingMode: 0
+  m_CollisionDetection: 0
+  m_Constraints: 0

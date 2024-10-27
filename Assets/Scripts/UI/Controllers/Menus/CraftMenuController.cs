@@ -3,23 +3,29 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class CraftMenuController : MonoBehaviour
+public class CraftMenuController : MonoBehaviour, IDraggable
 {
-    [SerializeField] GameObject arrowButtons;
-    RectTransform rectTransform;
-    RectTransform canvasRect;
-    RectTransform viewport;
+    [SerializeField] RectTransform rectTransform;
+    [SerializeField] RectTransform canvasRect;
+    [SerializeField] RectTransform viewport;
+    [SerializeField] Text itemMultiplier;
     int tileSelected = 0;
     int tileSelectedAmount = 0;
     Transform follower;
     GameObject UiMenu;
     Dropdown dropdown;
     bool canCraft = false;
+    private bool canDrag = false;
+    public bool CanDrag { get => canDrag; }
 
     List<int> currentTiles = new List<int>();
     List<int> currentTileAmounts = new List<int>();
     List<int> avaliableTiles = new List<int>();
     List<string> availableRecipes = new List<string>();
+
+    [Header("CraftsPath")]
+    public string path;
+    public int block;
 
     public void InvokeMenu(Transform followTo)
     {
@@ -28,8 +34,8 @@ public class CraftMenuController : MonoBehaviour
         canvasRect = GameObject.Find("Canvas").GetComponent<RectTransform>();
         follower = followTo;
         List<Sprite> options = new List<Sprite>();
-        string[] text = DataSaver.ReadTxt(Application.persistentDataPath + @"/packages/LeagerStudios/crafts.txt");
-        int LIT = DataSaver.LinesInTxt(Application.persistentDataPath + @"/packages/LeagerStudios/crafts.txt");
+        string[] text = DataSaver.ReadTxt(Application.persistentDataPath + @"/packages/LeagerStudios/" + path + ".txt");
+        int LIT = text.Length;
 
         for (int i = 0; i < LIT; i++)
         {
@@ -42,12 +48,12 @@ public class CraftMenuController : MonoBehaviour
             }
             int tile = System.Convert.ToInt32(new string(tileList.ToArray()));
 
-            if (TechManager.techTree.unlockedItems.Contains(tile))
-            {
-                availableRecipes.Add(text[i]);
-                avaliableTiles.Add(tile);
-                options.Add(GameManager.gameManagerReference.tiles[System.Convert.ToInt32(new string(tileList.ToArray()))]);
-            }
+            //if (TechManager.techTree.unlockedItems.Contains(tile))
+            //{
+            availableRecipes.Add(text[i]);
+            avaliableTiles.Add(tile);
+            options.Add(GameManager.gameManagerReference.tiles[System.Convert.ToInt32(new string(tileList.ToArray()))]);
+            //}
         }
 
         UiMenu = transform.parent.gameObject;
@@ -75,7 +81,7 @@ public class CraftMenuController : MonoBehaviour
         rectTransform.anchoredPosition = FollowerScreenPosition;
         Debug.DrawRay(follower.position, Vector3.up, Color.black);
 
-        if (follower.GetComponent<SpriteRenderer>().sprite != GameManager.gameManagerReference.tiles[16])
+        if (follower.GetComponent<SpriteRenderer>().sprite != GameManager.gameManagerReference.tiles[block])
         {
             Close();
         }
@@ -97,7 +103,7 @@ public class CraftMenuController : MonoBehaviour
             transform.GetChild(1).GetChild(2).GetComponent<Button>().interactable = canCraft;
         }
 
-        if (GInput.GetKeyDown(KeyCode.E)) Close();
+        if (StackBar.stackBarController.InventoryDeployed) Close();
 
     }
 
@@ -149,6 +155,15 @@ public class CraftMenuController : MonoBehaviour
 
             tileSelectedAmount = System.Convert.ToInt32(new string(tileAmm.ToArray()));
             tileSelected = System.Convert.ToInt32(new string(tile.ToArray()));
+            if(tileSelectedAmount > 1)
+            {
+                itemMultiplier.text = "×" + tileSelectedAmount;
+            }
+            else
+            {
+                itemMultiplier.text = "";
+            }
+            
         }
 
 
@@ -241,18 +256,27 @@ public class CraftMenuController : MonoBehaviour
             currentTileAmounts.Add(tileAmount);
 
             GameObject gameObject = Instantiate(itemReqPrefab, viewport);
-            gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, (i * -30) + 18f);
+            gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, i * -30 -15);
             gameObject.transform.GetChild(0).GetComponent<Image>().sprite = GameManager.gameManagerReference.tiles[tile];
             gameObject.transform.GetChild(1).GetComponent<Text>().text = tileAmount + "";
         }
 
-        arrowButtons.SetActive(items.Count > 2);
+        canDrag = items.Count > 2;
+        RectTransform rectViewport = (RectTransform)rectTransform.GetChild(1).GetChild(3);
+        rectViewport.sizeDelta = new Vector2(30, Mathf.Clamp(items.Count, 0, 2) * 30 + (items.Count > 2 ? 10 : 0));
+        Drag();
     }
 
-    public void MoveBlocksReq(int move)
+    public void Drag()
     {
         RectTransform rectViewport = (RectTransform)rectTransform.GetChild(1).GetChild(3).GetChild(1);
-        rectViewport.anchoredPosition = new Vector2(0, Mathf.Clamp(rectViewport.anchoredPosition.y + (move * 15), 0, -rectViewport.GetChild(viewport.childCount - 1).GetComponent<RectTransform>().anchoredPosition.y));
+
+        if(rectViewport.childCount < 3)
+        {
+            rectViewport.anchoredPosition = Vector2.zero;
+        }
+        else
+            rectViewport.anchoredPosition = new Vector2(0, Mathf.Clamp(rectViewport.anchoredPosition.y, 0,(rectViewport.childCount - 2) * 30 - 10));
     }
 
     public void Craft()
@@ -275,7 +299,7 @@ public class CraftMenuController : MonoBehaviour
         int temp = tileSelectedAmount;
 
         while (tileSelectedAmount > 0)
-            if (StackBar.AddItem(tileSelected))
+            if (StackBar.AddItemInv(tileSelected))
                 tileSelectedAmount--;
             else break;
 

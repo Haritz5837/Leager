@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class InventoryArrowController : MonoBehaviour
 {
@@ -14,6 +15,8 @@ public class InventoryArrowController : MonoBehaviour
     public int idxPos = 0;
     public int tilePorting = -1;
     public int tilePortingAmount;
+    public LayerMask UILayer;
+
 
     void Start()
     {
@@ -165,7 +168,7 @@ public class InventoryArrowController : MonoBehaviour
                         tilePorting = -1;
                         dragged = true;
                     }
-                    else if (StackBar.stackBarController.StackBarGrid[idxPos] == tilePorting && StackBar.stackBarController.StackItemAmount[idxPos] < 99 && GameManager.gameManagerReference.tileType[tilePorting] != "tool" && StackBar.stackBarController.StackItemAmount[idxPos] < 99 && GameManager.gameManagerReference.tileType[tilePorting] != "arm" && GameManager.gameManagerReference.tileType[tilePorting] != "equip" && GameManager.gameManagerReference.tileType[tilePorting] != "core")
+                    else if (StackBar.stackBarController.StackBarGrid[idxPos] == tilePorting && StackBar.stackBarController.StackItemAmount[idxPos] < 99 && GameManager.gameManagerReference.stackLimit[tilePorting] > 1)
                     {
                         StackBar.AsignNewStack(idxPos, tilePorting, tilePortingAmount + StackBar.stackBarController.StackItemAmount[idxPos]);
 
@@ -208,7 +211,7 @@ public class InventoryArrowController : MonoBehaviour
                         tilePorting = -1;
                         dragged = true;
                     }
-                    else if (InventoryBar.inventoryBarController.InventoryBarGrid[idxPos - 9] == tilePorting && InventoryBar.inventoryBarController.InventoryItemAmount[idxPos - 9] < 99 && GameManager.gameManagerReference.tileType[tilePorting] != "tool" && GameManager.gameManagerReference.tileType[tilePorting] != "arm" && GameManager.gameManagerReference.tileType[tilePorting] != "equip" && GameManager.gameManagerReference.tileType[tilePorting] != "core")
+                    else if (InventoryBar.inventoryBarController.InventoryBarGrid[idxPos - 9] == tilePorting && InventoryBar.inventoryBarController.InventoryItemAmount[idxPos - 9] < 99 && GameManager.gameManagerReference.stackLimit[tilePorting] > 1)
                     {
                         InventoryBar.AsignNewStack(idxPos - 9, tilePorting, tilePortingAmount + InventoryBar.inventoryBarController.InventoryItemAmount[idxPos - 9]);
 
@@ -253,19 +256,20 @@ public class InventoryArrowController : MonoBehaviour
         else if (tilePorting != -1)
         {
             Vector2 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            if (gameManager.tileType[tilePorting] == "equip" && Vector2.Distance(mouseWorldPos, gameManager.player.transform.position) < 0.76f)
-            {
-                tilePorting = gameManager.EquipItem(tilePorting, gameManager.tileMainProperty[tilePorting]);
-                rectTransform.GetChild(1).GetComponent<Image>().sprite = gameManager.tiles[tilePorting];
+            //if (gameManager.tileType[tilePorting] == "equip" && Vector2.Distance(mouseWorldPos, gameManager.player.transform.position) < 0.76f)
+            //{
+            //    tilePorting = gameManager.EquipItem(tilePorting, gameManager.tileMainProperty[tilePorting]);
+            //    rectTransform.GetChild(1).GetComponent<Image>().sprite = gameManager.tiles[tilePorting];
 
-                if(tilePorting == 0)
-                {
-                    rectTransform.GetChild(0).GetComponent<Image>().enabled = false;
-                    rectTransform.GetChild(0).GetComponent<Image>().color = Color.white;
-                    tilePorting = -1;
-                }
-            }
-            else
+            //    if(tilePorting == 0)
+            //    {
+            //        rectTransform.GetChild(0).GetComponent<Image>().enabled = false;
+            //        rectTransform.GetChild(0).GetComponent<Image>().color = Color.white;
+            //        tilePorting = -1;
+            //    }
+            //}
+            //else
+            if(!EventSystem.current.IsPointerOverGameObject())
             {
                 gameManager.player.GetComponent<SpriteRenderer>().flipX = mouseWorldPos.x < gameManager.player.transform.position.x;
                 gameManager.player.PlayerRelativeDrop(tilePorting, tilePortingAmount);
@@ -274,6 +278,52 @@ public class InventoryArrowController : MonoBehaviour
                 rectTransform.GetChild(0).GetComponent<Image>().enabled = false;
                 rectTransform.GetChild(0).GetComponent<Image>().color = Color.white;
             }
+        }
+    }
+
+    public void ArmorPickup(int idx, StackStorage reference, string type)
+    {
+        if (tilePorting == -1)
+        {
+            if (reference.GetItemAt(idx) != 0)
+            {
+                tilePorting = reference.GetItemAt(idx);
+                tilePortingAmount = 1;
+                reference.SetAt(idx, 0, 0);
+
+                GameManager.gameManagerReference.soundController.PlaySfxSound(SoundName.select);
+                transform.GetChild(0).GetComponent<Image>().color = Color.yellow;
+                transform.GetChild(1).GetComponent<Image>().enabled = true;
+                transform.GetChild(1).GetComponent<Image>().sprite = gameManager.tiles[tilePorting];
+            }
+        }
+        else
+        {
+            if (gameManager.tileMainProperty[tilePorting] == type)
+                if (reference.GetItemAt(idx) != 0)
+                {
+                    int tilePortingTemp = reference.GetItemAt(idx);
+                    reference.SetAt(idx, tilePorting, 1);
+
+                    tilePorting = tilePortingTemp;
+                    tilePortingAmount = 1;
+
+                    GameManager.gameManagerReference.soundController.PlaySfxSound(SoundName.select);
+                    transform.GetChild(0).GetComponent<Image>().color = Color.yellow;
+                    transform.GetChild(1).GetComponent<Image>().enabled = true;
+                    transform.GetChild(1).GetComponent<Image>().sprite = gameManager.tiles[tilePorting];
+                }
+                else
+                {
+                    reference.SetAt(idx, tilePorting, 1);
+                    tilePorting = -1;
+                    tilePortingAmount = 0;
+
+                    GameManager.gameManagerReference.soundController.PlaySfxSound(SoundName.select);
+                    rectTransform.GetChild(1).GetComponent<Image>().sprite = gameManager.tiles[0];
+                    rectTransform.GetChild(0).GetComponent<Image>().enabled = false;
+                    rectTransform.GetChild(0).GetComponent<Image>().color = Color.white;
+                }
         }
     }
 }

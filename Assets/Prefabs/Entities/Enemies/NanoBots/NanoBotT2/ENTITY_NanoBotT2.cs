@@ -46,6 +46,8 @@ public class ENTITY_NanoBotT2 : EntityBase, IDamager
         }
     }
 
+    public override EntityCommonScript EntityCommonScript => entityScript;
+
     public override string[] GenerateArgs()
     {
         return null;
@@ -73,11 +75,12 @@ public class ENTITY_NanoBotT2 : EntityBase, IDamager
         animator.SetBool("damaged", true);
         if (CheckGrounded()) rb2D.AddForce(new Vector2(0, 100));
         Invoke("UnDamage", 0.3f);
+        HealthBarManager.self.UpdateHealthBar(transform, HP, HpMax, Vector2.up);
     }
 
     public override void Despawn()
     {
-        if (animator.GetBool("dead"))
+        if (animator.GetBool("dead") && !entityScript.entityStates.Contains(EntityState.Burning))
         {
             for (int i = 0; i < 20; i++)
             {
@@ -291,7 +294,7 @@ public class ENTITY_NanoBotT2 : EntityBase, IDamager
         {
             RaycastHit2D rayHit = Physics2D.Raycast(startpos, raycastDir, raycastDist, blockMask);
             if (rayHit)
-                colliding = rayHit.transform.GetComponent<PlatformEffector2D>() == null;
+                colliding = rayHit.collider.transform.GetComponent<PlatformEffector2D>() == null;
             else colliding = false;
         }
         else

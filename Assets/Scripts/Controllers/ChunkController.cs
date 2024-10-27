@@ -11,6 +11,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
     public string chunkBiome = "dumby";
     public bool loading = false;
     public int[] TileGrid;
+    public int[] BackgroundTileGrid;
     public string[] TilePropertiesArr;
     public float[] LightMap;
     public GameObject[] TileObject;
@@ -18,13 +19,18 @@ public class ChunkController : MonoBehaviour, ITimerCall
     public int childId;
     public int tilesToChunk;
     public int orgX;
+    public int currentX;
     GameManager manager;
     PlayerController player;
     public const float entitiesSpawnTimeConstant = 3f;
     public float entitiesSpawnTime = 0f;
+    public bool updateChunk = false;
+
+    public bool rendering = true;
 
     [Header("Prefabs")]
 
+    [SerializeField] GameObject BackgroundTile;
     [SerializeField] GameObject grassObject;
     [SerializeField] GameObject fireObject;
     [SerializeField] GameObject doorObject;
@@ -35,6 +41,13 @@ public class ChunkController : MonoBehaviour, ITimerCall
     [SerializeField] GameObject raideonSpawnerObject;
     [SerializeField] GameObject ladderObject;
     [SerializeField] GameObject grassThingObject;
+    [SerializeField] GameObject fallingSandObject;
+    [SerializeField] GameObject bedLeftSideObject;
+    [SerializeField] GameObject bedRightSideObject;
+
+    [SerializeField] GameObject energyGenerator;
+    [SerializeField] GameObject nodeTowerT1;
+    [SerializeField] GameObject laserDrill;
 
     [SerializeField] Sprite[] waterFrames;
 
@@ -43,15 +56,18 @@ public class ChunkController : MonoBehaviour, ITimerCall
         loaded = false;
         ID = id;
         TileGrid = new int[h * 16];
+        BackgroundTileGrid = new int[h * 16];
         TilePropertiesArr = new string[h * 16];
         TileObject = new GameObject[h * 16];
         LightMap = new float[h * 16];
         manager = GameManager.gameManagerReference;
         orgX = orgXpos;
+        currentX = orgX;
         player = GameObject.Find("Lecter").GetComponent<PlayerController>();
         childId = cId;
         tilesToChunk = (manager.WorldHeight * 16) * childId;
         chunkBiome = chunkBiomeParam;
+        //GameManager.OnWorldRounding += UpdateChunkPos;
     }
 
 
@@ -82,7 +98,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
             }
         }
 
-
+        currentX = nearestPos;
         transform.position = new Vector2(nearestPos, 0);
     }
 
@@ -118,8 +134,8 @@ public class ChunkController : MonoBehaviour, ITimerCall
             for (int e = 0; e < TileGrid.Length; e++)
             {
                 DivisionResult d = ManagingFunctions.EntireDivision(e, manager.WorldHeight);
-                int tileX = (int)d.cocient;
-                int tileY = (int)d.rest;
+                int tileX = d.cocient;
+                int tileY = d.rest;
 
                 if (TileGrid[e] < 0) TileGrid[e] = 0;
 
@@ -199,13 +215,15 @@ public class ChunkController : MonoBehaviour, ITimerCall
                         {
                             Timer timer = TileObject[e].AddComponent<Timer>();
                             timer.InvokeTimer(10, new string[] { "ChangeBrick", e + "", }, this);
+                            AnimatorBlock(e, TileGrid[e]);
                             TileObject[e].GetComponent<BlockAnimationController>().PlayAnimation();
                         }
                         else if (TileObject[e].GetComponent<Timer>() != null && TileGrid[e - 1] != 5)
                         {
                             Destroy(TileObject[e].GetComponent<BlockAnimationController>());
                             TileGrid[e] = 0;
-                            ManagingFunctions.DropItem(4, TileObject[e].transform.position);
+                            if (!manager.isNetworkClient)
+                                ManagingFunctions.DropItem(4, TileObject[e].transform.position);
                             Destroy(TileObject[e].GetComponent<Timer>());
                         }
                         break;
@@ -220,7 +238,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                             TileGrid[e] = 0;
                             if (StackBar.stackBarController.currentItem == 70)
                                 StackBar.AddItem(70);
-                            else
+                            else if (!manager.isNetworkClient)
                                 ManagingFunctions.DropItem(70, TileObject[e].transform.position);
 
                         }
@@ -252,7 +270,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                                 TileGrid[e] = 0;
                                 if (StackBar.stackBarController.currentItem == 88)
                                     StackBar.AddItem(88);
-                                else
+                                else if(!manager.isNetworkClient)
                                     ManagingFunctions.DropItem(88, TileObject[e].transform.position);
                             }
                         else
@@ -276,23 +294,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
 
                 //end of behaviors
                 TileMod(e, TileGrid[e]);
-                if (manager.tileAnimation[TileGrid[e]] != null)
-                {
-                    if (TileObject[e].GetComponent<BlockAnimationController>() == null)
-                    {
-                        BlockAnimationController animationController = TileObject[e].AddComponent<BlockAnimationController>();
-                        animationController.animationData = manager.tileAnimation[TileGrid[e]];
-                        animationController.rootBIdx = e;
-                        animationController.rootChunk = this;
-                    }
-                }
-                else
-                {
-                    if (TileObject[e].GetComponent<BlockAnimationController>() != null)
-                    {
-                        Destroy(TileObject[e].GetComponent<BlockAnimationController>());
-                    }
-                }
+                AnimatorBlock(e, TileGrid[e]);
 
                 if (manager.tileAnimation[TileGrid[e]] == null)
                 {
@@ -322,12 +324,33 @@ public class ChunkController : MonoBehaviour, ITimerCall
         }
     }
 
+    public void AnimatorBlock(int e, int tile)
+    {
+        if (manager.tileAnimation[tile] != null)
+        {
+            if (TileObject[e].GetComponent<BlockAnimationController>() == null)
+            {
+                BlockAnimationController animationController = TileObject[e].AddComponent<BlockAnimationController>();
+                animationController.animationData = manager.tileAnimation[tile];
+                animationController.rootBIdx = e;
+                animationController.rootChunk = this;
+            }
+        }
+        else
+        {
+            if (TileObject[e].GetComponent<BlockAnimationController>() != null)
+            {
+                Destroy(TileObject[e].GetComponent<BlockAnimationController>());
+            }
+        }
+    }
+
     public void UpdateLayerForTile(int e)
     {
         int cT = manager.TileCollisionType[TileGrid[e]];
 
         TileObject[e].GetComponent<BoxCollider2D>().enabled = true;
-        TileObject[e].GetComponent<BoxCollider2D>().isTrigger = cT == 3;
+        TileObject[e].GetComponent<BoxCollider2D>().isTrigger = cT > 2;
 
         switch (cT)
         {
@@ -362,6 +385,20 @@ public class ChunkController : MonoBehaviour, ITimerCall
                     ModifyTile(false, "platform", TileObject[e]);
                 }
                 break;
+            case 4:
+                TileObject[e].layer = 17;
+                if (TileObject[e].GetComponent<PlatformEffector2D>() != null)
+                {
+                    ModifyTile(false, "platform", TileObject[e]);
+                }
+                break;
+            case 5:
+                TileObject[e].layer = 18;
+                if (TileObject[e].GetComponent<PlatformEffector2D>() != null)
+                {
+                    ModifyTile(false, "platform", TileObject[e]);
+                }
+                break;
         }
     }
 
@@ -389,27 +426,17 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 TilePropertiesArr[e] = "null";
                 manager.allMapProp[tilesToChunk + e] = "null";
                 tileProperties.destroy = true;
+                tileProperties.CallAttach();
                 Destroy(tileProperties);
             }
         }
 
-        if (gameTile.transform.childCount > 0)
-        {
-            for (int i = 0; i < gameTile.transform.childCount; i++)
-            {
-                if (gameTile.transform.GetChild(i).gameObject.name != tile + "")
-                {
-                    GameObject block = gameTile.transform.GetChild(i).gameObject;
-                    block.transform.parent = null;
-                    Destroy(block);
-                }
-            }
-        }
+        int childs = RevaluateLifeChoicesForTile(gameTile, tile, e);
 
         switch (tile)
         {
             case 1:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject grassBlock = Instantiate(grassObject, gameTile.transform);
                     grassBlock.transform.localPosition = Vector2.zero;
@@ -418,7 +445,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 15:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject boxBlock = Instantiate(boxObject, gameTile.transform);
                     boxBlock.transform.localPosition = Vector2.zero;
@@ -427,7 +454,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 55:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject leavesBlock = Instantiate(leavesObject, gameTile.transform);
                     leavesBlock.transform.localPosition = Vector2.zero;
@@ -436,7 +463,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 84:
-                if (tile == 84 && gameTile.transform.childCount < 1)
+                if (tile == 84 && childs < 1)
                 {
                     GameObject fireBlock = Instantiate(fireObject, gameTile.transform);
                     fireBlock.name = "84";
@@ -454,7 +481,8 @@ public class ChunkController : MonoBehaviour, ITimerCall
 
                         if (TileGrid[e + 1] != 87)
                         {
-                            ManagingFunctions.DropItem(85, gameTile.transform.position);
+                            if (!manager.isNetworkClient)
+                                ManagingFunctions.DropItem(85, gameTile.transform.position);
                             TileGrid[e] = 0;
                         }
                         else
@@ -467,7 +495,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                                 animationController.rootChunk = this;
                             }
 
-                            if (gameTile.transform.childCount < 1)
+                            if (childs < 1)
                             {
                                 GameObject doorBlock = Instantiate(doorObject, gameTile.transform);
                                 doorBlock.name = "86";
@@ -488,40 +516,44 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 86:
-                    if (TileGrid[e + 1] != 87)
-                    {
+                if (TileGrid[e + 1] != 87)
+                {
+                    if (!manager.isNetworkClient)
                         ManagingFunctions.DropItem(85, gameTile.transform.position);
-                        TileGrid[e] = 0;
-                    }
-                    else
-                    {
-                        if (gameTile.GetComponent<BlockAnimationController>() == null)
-                        {
-                            BlockAnimationController animationController = gameTile.AddComponent<BlockAnimationController>();
-                            animationController.animationData = manager.tileAnimation[TileGrid[e]];
-                            animationController.rootBIdx = e;
-                            animationController.rootChunk = this;
-                        }
+                    TileGrid[e] = 0;
 
-                        if (gameTile.transform.childCount < 1)
-                        {
-                            GameObject doorBlock = Instantiate(doorObject, gameTile.transform);
-                            doorBlock.name = "86";
-                            doorBlock.transform.localPosition = Vector2.zero;
-                        }
+                    RevaluateLifeChoicesForTile(gameTile, 0, e);
+                }
+                else
+                {
+                    if (gameTile.GetComponent<BlockAnimationController>() == null)
+                    {
+                        BlockAnimationController animationController = gameTile.AddComponent<BlockAnimationController>();
+                        animationController.animationData = manager.tileAnimation[TileGrid[e]];
+                        animationController.rootBIdx = e;
+                        animationController.rootChunk = this;
                     }
+
+                    if (childs < 1)
+                    {
+                        GameObject doorBlock = Instantiate(doorObject, gameTile.transform);
+                        doorBlock.name = "86";
+                        doorBlock.transform.localPosition = Vector2.zero;
+                    }
+                }
                 break;
 
             case 87:
                     if (TileGrid[e - 1] != 86)
                     {
+                    if (!manager.isNetworkClient)
                         ManagingFunctions.DropItem(85, gameTile.transform.position - Vector3.up);
                         TileGrid[e] = 0;
                     }
                 break;
 
             case 89:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject grabberObject = Instantiate(resourceGrabberObject, gameTile.transform);
                     grabberObject.name = "89";
@@ -529,9 +561,28 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 }
                 break;
 
+            case 92:
+                if (childs < 1)
+                {
+                    GameObject laserDrillObj = Instantiate(laserDrill, gameTile.transform);
+                    laserDrillObj.transform.localPosition = Vector2.zero;
+                    laserDrillObj.name = "92";
+                }
+                break;
+
+            case 94:
+                if (childs < 1)
+                {
+                    GameObject nodeTower = Instantiate(nodeTowerT1, gameTile.transform);
+                    nodeTower.transform.localPosition = Vector2.zero;
+                    nodeTower.name = "94";
+                }
+                break;
+
             case 98:
                     if (manager.GetTileAt(tilesToChunk + e + manager.WorldHeight) != 99)
                     {
+                    if (!manager.isNetworkClient)
                         ManagingFunctions.DropItem(100, gameTile.transform.position + Vector3.right * 0.5f);
                         TileGrid[e] = 0;
                     }
@@ -540,6 +591,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
             case 99:
                     if (manager.GetTileAt(tilesToChunk + e - manager.WorldHeight) != 98)
                     {
+                        if (!manager.isNetworkClient)
                         ManagingFunctions.DropItem(100, gameTile.transform.position + Vector3.left * 0.5f);
                         TileGrid[e] = 0;
                     }
@@ -566,7 +618,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 101:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject unitCenter = Instantiate(unitCenterObject, gameTile.transform);
                     unitCenter.name = "101";
@@ -575,7 +627,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 102:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject boxBlock = Instantiate(boxObject, gameTile.transform);
                     boxBlock.transform.localPosition = Vector2.zero;
@@ -584,7 +636,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 106:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject grassBlock = Instantiate(grassThingObject, gameTile.transform);
                     grassBlock.transform.localPosition = Vector2.zero;
@@ -594,7 +646,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
 
 
             case 108:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject spawnerBlock = Instantiate(raideonSpawnerObject, gameTile.transform);
                     spawnerBlock.transform.localPosition = Vector2.zero;
@@ -603,7 +655,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 109:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject ladderBlock = Instantiate(ladderObject, gameTile.transform);
                     ladderBlock.transform.localPosition = Vector2.zero;
@@ -612,21 +664,134 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 break;
 
             case 110:
-                if (gameTile.transform.childCount < 1)
+                if (childs < 1)
                 {
                     GameObject ladderBlock = Instantiate(ladderObject, gameTile.transform);
                     ladderBlock.transform.localPosition = Vector2.zero;
                     ladderBlock.name = "110";
                 }
                 break;
+
+            case 113:
+                if (TileGrid[e - 1] == 0)
+                {
+                    GameObject fallingSand = Instantiate(fallingSandObject, manager.entitiesContainer.transform);
+                    fallingSand.transform.position = gameTile.transform.position;
+                    fallingSand.name = "113";
+                    TileGrid[e] = 0;
+                }
+                break;
+
+            case 114:
+                if (manager.GetTileAt(tilesToChunk + e + manager.WorldHeight) != 115)
+                {
+                    if (!manager.isNetworkClient)
+                        ManagingFunctions.DropItem(116, gameTile.transform.position + Vector3.right * 0.5f);
+                    TileGrid[e] = 0;
+                }
+                break;
+
+            case 115:
+                if (manager.GetTileAt(tilesToChunk + e - manager.WorldHeight) != 114)
+                {
+                    if (!manager.isNetworkClient)
+                        ManagingFunctions.DropItem(116, gameTile.transform.position + Vector3.left * 0.5f);
+                    TileGrid[e] = 0;
+                    if (e > manager.WorldHeight - 1)
+                    {
+                        TileMod(e - manager.WorldHeight, TileGrid[e - manager.WorldHeight]);
+                    }
+                }
+                else if (childs < 1)
+                {
+                    GameObject bedBlock = Instantiate(bedRightSideObject, gameTile.transform);
+                    bedBlock.transform.localPosition = Vector2.zero;
+                    bedBlock.name = "115";
+                }
+                break;
+
+            case 116:
+                try
+                {
+                    if (manager.GetTileAt(tilesToChunk + e + manager.WorldHeight) == 0)
+                    {
+                        TileGrid[e] = 114;
+                        manager.SetTileAt(tilesToChunk + e + manager.WorldHeight, 115);
+                    }
+                    else
+                    {
+                        throw new System.Exception("UH NO");
+                    }
+                }
+                catch
+                {
+                    TileGrid[e] = 0;
+                    StackBar.AddItem(116);
+                }
+                break;
+
+            case 125:
+                if (childs < 1)
+                {
+                    GameObject energyGeneratorObj = Instantiate(energyGenerator, gameTile.transform);
+                    energyGeneratorObj.transform.localPosition = Vector2.zero;
+                    energyGeneratorObj.name = "125";
+                }
+                break;
         }
 
     }
 
+    public int RevaluateLifeChoicesForTile(GameObject gameTile, int tile, int e)
+    {
+        bool properBackground = false;
+        int bgCount = 0;
+        if (gameTile.transform.childCount > 0)
+        {
+            for (int i = 0; i < gameTile.transform.childCount; i++)
+            {
+                string name = gameTile.transform.GetChild(i).gameObject.name;
+                if(name[0] == 'b')
+                {
+                    bgCount++;
+                    if (name != "b" + BackgroundTileGrid[e])
+                    {
+                        GameObject block = gameTile.transform.GetChild(i).gameObject;
+                        block.transform.parent = null;
+                        Destroy(block);
+                        properBackground = false;
+                        bgCount--;
+                    }
+                    else
+                    {
+                        properBackground = true;
+                    }
+                }
+                else if (name != tile + "")
+                {
+                    GameObject block = gameTile.transform.GetChild(i).gameObject;
+                    block.transform.parent = null;
+                    Destroy(block);
+                }
+            }
+        }
+
+        if (!properBackground && BackgroundTileGrid[e] != 0)
+        {
+            GameObject newTile = Instantiate(BackgroundTile, gameTile.transform);
+
+            newTile.transform.localPosition = Vector2.zero;
+            newTile.name = "b" + BackgroundTileGrid[e];
+            newTile.GetComponent<SpriteRenderer>().sprite = manager.tiles[BackgroundTileGrid[e]];
+            bgCount++;
+        }
+
+        return gameTile.transform.childCount - bgCount;
+    }
+
     public float GetLightForTile(int idx, bool isStillSunny)
     {
-        float returnVal = 0f;
-
+        float returnVal;
         if (isStillSunny)
         {
             returnVal = 2;
@@ -709,21 +874,21 @@ public class ChunkController : MonoBehaviour, ITimerCall
                     {
                         if (TileGrid[idx - 1] == 0)//GRAVITY
                         {
-                            PhysicsForFluidBlocks(x, y, tile, new List<int>(new int[] { 0 }), 0, new Vector2(0, -1));
+                            PhysicsForFluidBlocks(x, y, tile, 0, 0, new Vector2(0, -1));
                         }
                         else/* if (liquidTileGrid[idx - 1] != tile)*/
                         {
                             int dir = Random.Range(-1, 2);
-                            if (!PhysicsForFluidBlocks(x, y, tile, new List<int>(new int[] { 0 }), 0, new Vector2(dir, 0)))
-                                PhysicsForFluidBlocks(x, y, tile, new List<int>(new int[] { 0 }), 0, new Vector2(-dir, 0));
+                            if (!PhysicsForFluidBlocks(x, y, tile, 0, 0, new Vector2(dir, 0)))
+                                PhysicsForFluidBlocks(x, y, tile,  0, 0, new Vector2(-dir, 0));
                         }
 
                         if (tile == 21)
                         {
-                            if (!PhysicsForFluidBlocks(x, y, 62, new List<int>(new int[] { 62 }), 6, new Vector2(0, 1)))
-                                if (!PhysicsForFluidBlocks(x, y, 62, new List<int>(new int[] { 62 }), 6, new Vector2(0, -1)))
-                                    if (!PhysicsForFluidBlocks(x, y, 62, new List<int>(new int[] { 62 }), 6, new Vector2(-1, 0)))
-                                        PhysicsForFluidBlocks(x, y, 62, new List<int>(new int[] { 62 }), 6, new Vector2(1, 0));
+                            if (!PhysicsForFluidBlocks(x, y, 62, 62, 6, Vector2.up))
+                                if (!PhysicsForFluidBlocks(x, y, 62, 62, 6, Vector2.down))
+                                    if (!PhysicsForFluidBlocks(x, y, 62, 62, 6, Vector2.left))
+                                        PhysicsForFluidBlocks(x, y, 62, 62, 6, Vector2.right);
                         }
                     }
                 }
@@ -732,7 +897,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
     }
 
 
-    bool PhysicsForFluidBlocks(int x, int y, int tile, List<int> tileCondition, int residualTile, Vector2 dir)
+    bool PhysicsForFluidBlocks(int x, int y, int tile, int tileCondition, int residualTile, Vector2 dir)
     {
         int idx = (x * manager.WorldHeight) + y;
         bool placed = false;
@@ -744,7 +909,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 int extTile = manager.GetTileAt(tilesToChunk - (manager.WorldHeight - y));
                 if (extTile != -1)
                 {
-                    if (tileCondition.Contains(extTile))
+                    if (tileCondition == extTile)
                     {
                         if (manager.GetTileObjectAt(tilesToChunk - (manager.WorldHeight - y)) != null)
                         {
@@ -771,7 +936,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
             }
             else
             {
-                if (tileCondition.Contains(TileGrid[idx - manager.WorldHeight]))
+                if (tileCondition == TileGrid[idx - manager.WorldHeight])
                 {
                     int old = idx - manager.WorldHeight;
                     TileGrid[old] = tile;
@@ -795,7 +960,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 int extTile = manager.GetTileAt(tilesToChunk + manager.NumberOfTilesInChunk + y);
                 if (extTile != -1)
                 {
-                    if (tileCondition.Contains(extTile))
+                    if (tileCondition == extTile)
                     {
                         if (manager.GetTileObjectAt(tilesToChunk + manager.NumberOfTilesInChunk + y) != null)
                         {
@@ -822,7 +987,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
             }
             else
             {
-                if (tileCondition.Contains(TileGrid[idx + manager.WorldHeight]))
+                if (tileCondition == TileGrid[idx + manager.WorldHeight])
                 {
                     int old = idx + manager.WorldHeight;
                     TileGrid[old] = tile;
@@ -843,7 +1008,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
         {
             if (y < manager.WorldHeight - 1)
             {
-                if (tileCondition.Contains(TileGrid[idx + 1]))
+                if (tileCondition == TileGrid[idx + 1])
                 {
                     int old = idx + 1;
                     TileGrid[old] = tile;
@@ -864,7 +1029,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
         {
             if (y > 0)
             {
-                if (tileCondition.Contains(TileGrid[idx - 1]))
+                if (tileCondition == TileGrid[idx - 1])
                 {
                     int old = idx - 1;
                     TileGrid[old] = tile;
@@ -887,38 +1052,50 @@ public class ChunkController : MonoBehaviour, ITimerCall
 
     public void CheckEntitiesSpawn()
     {
-        if (!manager.isNetworkClient)
+        int caveLayer = manager.WorldHeight / 2;
+
+
+        if (!manager.isNetworkClient && EntitiesManager.self.canNaturalSpawn)
             for (int x = 0; x < 16; x++)
             {
                 for (int y = 0; y < manager.WorldHeight; y++)
                 {
-                    if (TileGrid[x * manager.WorldHeight + y] == 0 && y > 0 && y < manager.WorldHeight - 1 && manager.TileCollisionType[TileGrid[x * manager.WorldHeight + y - 1]] == 1)//Nano1
+                    int idx = x * manager.WorldHeight + y;
+                    if (TileGrid[idx] == 0 && BackgroundTileGrid[idx] == 0 && y < manager.WorldHeight - 1 && manager.TileCollisionType[TileGrid[idx + 1]] == 0)
                     {
-                        if (Random.Range(0, (int)(350 * manager.dayLuminosity)) == 0 && manager.dayLuminosity > 0.5f)
+                        if (Vector2.Distance(new Vector2(currentX, y), manager.player.transform.position) > 20)
                         {
-                            if (manager.TileCollisionType[TileGrid[x * manager.WorldHeight + y + 1]] == 0 && Vector2.Distance(new Vector2(x + transform.position.x, y + 0.3f), manager.player.transform.position) > 20)
+                            if (manager.TileCollisionType[TileGrid[idx - 1]] == 1)//Nano1
                             {
-                                ENTITY_NanoBotT1.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                if (Random.Range(0, (int)(350 / manager.dayLuminosity)) == 0 && (manager.dayLuminosity > 0.5f || y < caveLayer))
+                                {
+                                    ENTITY_NanoBotT1.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                }
                             }
-                        }
-                    }
-                    if (TileGrid[x * manager.WorldHeight + y] == 0 && y > 0 && TileGrid[x * manager.WorldHeight + y - 1] == 6 && y < manager.WorldHeight * 0.5f)//Nano2
-                    {
-                        if (Random.Range(0, 250) == 0)
-                        {
-                            if (manager.TileCollisionType[TileGrid[x * manager.WorldHeight + y + 1]] == 0 && Vector2.Distance(new Vector2(x + transform.position.x, y + 0.3f), manager.player.transform.position) > 20)
+
+                            if (y > caveLayer)
                             {
-                                ENTITY_NanoBotT2.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                if (TileGrid[idx - 1] == 1)
+                                {
+                                    if (Random.Range(0, (int)(250 / manager.dayLuminosity)) == 0)
+                                    {
+                                        ENTITY_Sheep.StaticSpawn(null, new Vector2(x + transform.position.x, y));
+                                    }
+                                }
                             }
-                        }
-                    }
-                    if (TileGrid[x * manager.WorldHeight + y] == 0 && y > 0 && y < manager.WorldHeight - 1 && TileGrid[x * manager.WorldHeight + y - 1] == 6)//Nano3
-                    {
-                        if (Random.Range(0, 450) == 0)
-                        {
-                            if (manager.TileCollisionType[TileGrid[x * manager.WorldHeight + y + 1]] == 0 && Vector2.Distance(new Vector2(x + transform.position.x, y + 0.3f), manager.player.transform.position) > 20)
+                            else
                             {
-                                ENTITY_NanoBotT3.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                if (TileGrid[idx - 1] == 6)
+                                {
+                                    if (Random.Range(0, 250) == 0)
+                                    {
+                                        ENTITY_NanoBotT2.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                    }
+                                    else if (Random.Range(0, 450) == 0)
+                                    {
+                                        ENTITY_NanoBotT3.StaticSpawn(null, new Vector2(x + transform.position.x, y + 0.3f));
+                                    }
+                                }
                             }
                         }
                     }
@@ -952,6 +1129,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
                 tileY++;
                 tileName++;
                 tileIdx++;
+                
 
                 if (Mathf.Abs(transform.position.x + 16 - manager.player.transform.position.x) > 32 && counter >= manager.tileSpawnRate)
                 {
@@ -1018,15 +1196,52 @@ public class ChunkController : MonoBehaviour, ITimerCall
         gameObject.SetActive(false);
     }
 
-    void Update () {
+    void Update ()
+    {
         if (manager.InGame && loaded && !loading)
         {
+            if (rendering)
+            {
+                if(Mathf.Abs(GameManager.gameManagerReference.player.transform.position.x - transform.position.x) > LightController.lightController.lightDist)
+                {
+                    SpriteRenderer[] spriteRenderers = GetComponentsInChildren<SpriteRenderer>();
+
+                    foreach(SpriteRenderer spriteRenderer in spriteRenderers)
+                    {
+                        spriteRenderer.enabled = false;
+                    }
+                    rendering = false;
+                }
+            }
+            else
+            {
+                if (Mathf.Abs(GameManager.gameManagerReference.player.transform.position.x - transform.position.x) < LightController.lightController.lightDist)
+                {
+                    SpriteRenderer[] spriteRenderers = GetComponentsInChildren<SpriteRenderer>();
+
+                    foreach (SpriteRenderer spriteRenderer in spriteRenderers)
+                    {
+                        spriteRenderer.enabled = true;
+                    }
+                    rendering = true;
+                }
+            }
+
+            if (updateChunk)
+            {
+                UpdateChunk();
+                updateChunk = false;
+            }
             BlocksPhysics();
 
             if (entitiesSpawnTime > entitiesSpawnTimeConstant)
             {
                 CheckEntitiesSpawn();
                 entitiesSpawnTime = 0;
+                if (!manager.LoadedChunks.Contains(gameObject))
+                {
+                    DestroyChunk();
+                }
             }
             else
             {
@@ -1036,6 +1251,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
             for (int e = 0; e < TileGrid.Length; e++)
             {
                 manager.allMapGrid[tilesToChunk + e] = TileGrid[e];
+                manager.allBackgroundGrid[tilesToChunk + e] = BackgroundTileGrid[e];
             }
         }
         else if (!loading && !loaded)
@@ -1048,11 +1264,7 @@ public class ChunkController : MonoBehaviour, ITimerCall
     {
         if (obj.transform.parent == gameObject.transform)
         {
-            if (Mathf.Abs(player.transform.position.x - obj.transform.position.x) > 0.6f || Mathf.Abs(player.transform.position.y - obj.transform.position.y) > 0.9f || (!manager.building || manager.TileCollisionType[StackBar.stackBarController.StackBarGrid[StackBar.stackBarController.idx]] != 1))
-            {
-                int previousBrush = manager.brush;
-                manager.ChangeBrush(TileGrid[System.Array.IndexOf(TileObject, obj)], obj);
-            }
+            manager.ChangeBrush(TileGrid[System.Array.IndexOf(TileObject, obj)], obj);
         }
     }
 
@@ -1116,5 +1328,23 @@ public class ChunkController : MonoBehaviour, ITimerCall
         }
 
         UpdateChunk();
+    }
+
+    private void OnBecameVisible()
+    {
+        print("kuak2");
+        for (int i = 0; i < TileObject.Length; i++)
+        {
+            TileObject[i].GetComponent<SpriteRenderer>().enabled = true;
+        }
+    }
+
+    private void OnBecameInvisible()
+    {
+        print("kuak1");
+        for (int i = 0; i < TileObject.Length; i++)
+        {
+            TileObject[i].GetComponent<SpriteRenderer>().enabled = false;
+        }
     }
 }

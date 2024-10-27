@@ -30,7 +30,7 @@ public class DroppedItemController : MonoBehaviour, IDamager
                         {
                             for (int i = 0; i < amount; i++)
                             {
-                                if (!StackBar.AddItem(item)) itemReturn++;
+                                if (!StackBar.AddItemInv(item)) itemReturn++;
                             }
                             if (itemReturn == 0)
                             {
@@ -56,7 +56,7 @@ public class DroppedItemController : MonoBehaviour, IDamager
 
     public void OnCollisionEnter2D(Collision2D collision)
     {
-        if(collision.gameObject.layer == 8)
+        if(collision.collider.gameObject.layer == 8)
         {
             GetComponent<EntityCommonScript>().swimming = 1f;
             floating = true;
@@ -73,6 +73,15 @@ public class DroppedItemController : MonoBehaviour, IDamager
             }
     }
 
+    private void OnDestroy()
+    {
+        GameManager.OnWorldRounding -= UpdatePosition;
+    }
+
+    private void Start()
+    {
+        GameManager.OnWorldRounding += UpdatePosition;
+    }
 
     private void Update()
     {
@@ -97,7 +106,8 @@ public class DroppedItemController : MonoBehaviour, IDamager
                 Destroy(gameObject);
             }
 
-            if (GameManager.gameManagerReference.GetTileObjectAt(GameManager.gameManagerReference.WorldHeight * (int)transform.position.x + (int)transform.position.y) != null)
+
+            if (GameManager.gameManagerReference.ChunkActive(Mathf.RoundToInt(ManagingFunctions.ClampX(transform.position.x))))
             {
                 GetComponent<Rigidbody2D>().simulated = true;
             }
@@ -127,7 +137,8 @@ public class DroppedItemController : MonoBehaviour, IDamager
 											itemDrop.gettingEnabled = false;
 											imunityGrab = (itemDrop.imunityGrab + imunityGrab) / 2f;
 											transform.position = Vector2.Lerp(transform.position, itemDrop.transform.position, 0.5f);
-											NetworkController.networkController.MoveItem(gameObject.name, transform.position);											NetworkController.networkController.UndropItem(itemDrop.gameObject.name);
+											NetworkController.networkController.MoveItem(gameObject.name, transform.position);
+                                            NetworkController.networkController.UndropItem(itemDrop.gameObject.name);
 											Destroy(itemDrop.gameObject);
 										}
 									}
@@ -137,5 +148,14 @@ public class DroppedItemController : MonoBehaviour, IDamager
                     }
                 }
         }
+        else
+        {
+            GetComponent<Rigidbody2D>().simulated = false;
+        }
+    }
+
+    public void UpdatePosition(int i)
+    {
+        transform.position += new Vector3(i * GameManager.gameManagerReference.WorldWidth * 16, 0);
     }
 }

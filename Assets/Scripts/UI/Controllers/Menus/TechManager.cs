@@ -8,6 +8,7 @@ public class TechManager : MonoBehaviour, IDragHandler
 {
     [Header("Main Stuff")]
     public static TechManager techTree;
+    public TechStack[] stacks;
     public Dictionary<int, TechStack> techStacks = new Dictionary<int, TechStack>();
     public List<int> unlockedItems = new List<int>();
     public List<int> fullyUnlockedItems = new List<int>();
@@ -24,21 +25,21 @@ public class TechManager : MonoBehaviour, IDragHandler
     {
         techTree = this;
         deployed = false;
+        
 
-        TechStack[] techStacks = transform.GetComponentsInChildren<TechStack>(true);
-        foreach (TechStack techStack in techStacks)
+        foreach (TechStack techStack in stacks)
         {
-            this.techStacks.Add(techStack.tile, techStack);
+            techStacks.Add(techStack.tile, techStack);
             techStack.Start1();
         }
-
+        //gameObject.SetActive(false);
     }
 
     public void Start()
     {
-        if (DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/tech.lgrsd"))
+        if (DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/worlds/" + GameManager.gameManagerReference.worldRootName + @"/tech.lgrsd"))
         {
-            int[] items = ManagingFunctions.ConvertStringToIntArray(DataSaver.LoadStats(Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/tech.lgrsd").SavedData);
+            int[] items = ManagingFunctions.ConvertStringToIntArray(DataSaver.LoadStats(Application.persistentDataPath + @"/worlds/" + GameManager.gameManagerReference.worldRootName + @"/tech.lgrsd").SavedData);
             StartUnlocks(new List<int>(items));
         }
     }
@@ -70,11 +71,11 @@ public class TechManager : MonoBehaviour, IDragHandler
 
     public void Update()
     {
-        if ((GInput.GetKeyDown(KeyCode.Tab) || (GInput.leagerInput.platform == "Mobile" && GInput.GetKeyDown(KeyCode.Escape))) && (deployed || (!deployed && GameManager.gameManagerReference.InGame)))
-        {
-            deployed = !deployed;
-            GameManager.gameManagerReference.InGame = !deployed;
-        }
+        //if (GInput.GetKeyDown(KeyCode.Tab) && (deployed || (!deployed && GameManager.gameManagerReference.InGame)))
+        //{
+        //    deployed = !deployed;
+        //    GameManager.gameManagerReference.InGame = !deployed;
+        //}
             
 
         GetComponent<Image>().enabled = deployed;

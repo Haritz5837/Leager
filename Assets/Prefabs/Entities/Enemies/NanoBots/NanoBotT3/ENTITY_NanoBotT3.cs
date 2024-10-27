@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class ENTITY_NanoBotT3 : EntityBase, IDamager
 {
-
+    [SerializeField] AudioClip[] explosionSounds;
     [SerializeField] Animator animator;
     [SerializeField] Rigidbody2D rb2D;
     [SerializeField] SpriteRenderer spriteRenderer;
@@ -47,6 +47,8 @@ public class ENTITY_NanoBotT3 : EntityBase, IDamager
         }
     }
 
+    public override EntityCommonScript EntityCommonScript => entityScript;
+
     public override string[] GenerateArgs()
     {
         return null;
@@ -71,19 +73,25 @@ public class ENTITY_NanoBotT3 : EntityBase, IDamager
     {
         Hp = Hp - damageDeal;
 
-        if (HP > 0)
+        if(procedence.EntityType == "nanobot3" && procedence != entityScript && animator.enabled)
+        {
+            Boom();
+        }
+        else if (HP > 0)
         {
             if (CheckGrounded() && !animator.GetBool("damaged")) rb2D.velocity = new Vector2(rb2D.velocity.x, 10f);
             animator.SetBool("damaged", true);
             Invoke("UnDamage", 0.6f);
+            HealthBarManager.self.UpdateHealthBar(transform, HP, HpMax, Vector2.up);
         }
     }
 
     public void Boom()
     {
         animator.enabled = false;
-        Instantiate(explosion, transform.position, Quaternion.identity).transform.localScale = new Vector3(3f, 3f, 1f);
+        Instantiate(explosion, transform.position, Quaternion.identity).transform.localScale = new Vector3(6f, 6f, 1f);
         Invoke("Despawn", 0.3f);
+        manager.soundController.PlaySfxSound(explosionSounds[Random.Range(0, explosionSounds.Length)], ManagingFunctions.VolumeDistance(Vector2.Distance(manager.player.transform.position, transform.position), 40));
 
         foreach (EntityCommonScript entity in manager.entitiesContainer.GetComponentsInChildren<EntityCommonScript>())
         {
@@ -91,7 +99,7 @@ public class ENTITY_NanoBotT3 : EntityBase, IDamager
             {
                 if (entity.gameObject.GetComponent<IDamager>() != null)
                 {
-                    entity.gameObject.GetComponent<IDamager>().Hit(15, GetComponent<EntityCommonScript>());
+                    entity.gameObject.GetComponent<IDamager>().Hit(15, GetComponent<EntityCommonScript>(), true, 1.5f, true);
                 }
             }
         }
@@ -112,7 +120,7 @@ public class ENTITY_NanoBotT3 : EntityBase, IDamager
 
     public override void Despawn()
     {
-        if (animator.GetBool("dead") && !animator.GetBool("makeboom"))
+        if (animator.GetBool("dead") && !animator.GetBool("makeboom") && !entityScript.entityStates.Contains(EntityState.Burning))
         {
             for (int i = 0; i < 20; i++)
             {
@@ -351,7 +359,7 @@ public class ENTITY_NanoBotT3 : EntityBase, IDamager
         {
             RaycastHit2D rayHit = Physics2D.Raycast(startpos, raycastDir, raycastDist, blockMask);
             if (rayHit)
-                colliding = rayHit.transform.GetComponent<PlatformEffector2D>() == null;
+                colliding = rayHit.collider.transform.GetComponent<PlatformEffector2D>() == null;
             else colliding = false;
         }
         else

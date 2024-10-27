@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Threading;
 
+public enum Difficulty : int
+{
+    normal = 1, hard = 2, extreme = 3,
+}
+
 public enum Biomes : int
 {
     meadow = 0, forest = 1, mountain = 2, ocean = 3,
@@ -10,7 +15,7 @@ public enum Biomes : int
 
 public enum Entities : int
 {
-    NanoBotT1 = 0, KrotekBoss = 1, TheDestroyer = 2, NanoBotT2 = 3, Raideon = 4, NanoBotT3 = 5, Darkn = 6, x
+    NanoBotT1 = 0, Krotek = 1, TheDestroyer = 2, NanoBotT2 = 3, Raideon = 4, NanoBotT3 = 5, Darkn = 6, NanoBotT5 = 7, Sheep = 8, Cow = 9, NanoBotT4 = 10, x
 }
 public enum UnitWeapons : int
 {
@@ -19,18 +24,20 @@ public enum UnitWeapons : int
 
 public enum Projectiles : int
 {
-    Arrow = 0, SwordParticle = 1, Laser = 2,
+    Arrow = 0, SwordParticle = 1, Laser = 2, PlasmaBomb = 3,
 }
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager gameManagerReference;
+    public static event System.Action<int> OnWorldRounding;
     [SerializeField] private bool inGame = false;
     [SerializeField] private bool playerFocused = false;
     public int seed = 0;
     public float frameTimerAdder = 0f;
     public int frameTimer = 0;
     public bool addedFrameThisFrame = false;
+    public Difficulty gameDifficulty = Difficulty.normal;
 
     public GameObject[] EntitiesGameObject;
     public GameObject[] ProjectilesGameObject;
@@ -46,7 +53,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] public int[] TileCollisionType;
     [SerializeField] public string[] tileMainProperty;
     [SerializeField] public string[] tileDefaultBrokeTool;
-    [SerializeField] public bool[] canRotate;
+    [SerializeField] public int[] stackLimit;
     [SerializeField] public int[] ToolEfficency;
     [SerializeField] public string[] tileName;
     [SerializeField] public Color[] rawColor;
@@ -61,13 +68,12 @@ public class GameManager : MonoBehaviour
     [SerializeField] public GameObject lecterSprite;
     [SerializeField] public GameObject emptySprite;
     [SerializeField] GameObject emptyChunk;
-    [SerializeField] GameObject falseChunk;
     [SerializeField] public GameObject chunkContainer;
     [SerializeField] public GameObject entitiesContainer;
     [SerializeField] GameObject Transition;
     [SerializeField] GameObject savingText;
+    [SerializeField] AudioClip[] surfaceOST;
     [SerializeField] AudioClip[] caveOST;
-    public string[] temp;
 
     [Header("Other")]
     public bool isNetworkClient = false;
@@ -95,7 +101,7 @@ public class GameManager : MonoBehaviour
     public Vector3 mouseDelta;
     public int NumberOfTilesInChunk;
 
-    public int[] equipedArmor = new int[3];
+    public int[] equipedArmor = new int[6];
 
     //Auxiliar for build
     GameObject lastTileBrush;
@@ -105,6 +111,7 @@ public class GameManager : MonoBehaviour
 
     //The map container
     public int[] allMapGrid;
+    public int[] allBackgroundGrid;
     public string[] allMapProp;
     public string currentPlanetName = "Korenz";
     public string currentHexPlanetColor = "25FF00FF";
@@ -113,8 +120,9 @@ public class GameManager : MonoBehaviour
     //Events and game data
     public Color skyboxColor;
     public Color daytimeUpdatedSkyboxColor;
+    public AnimationCurve dayNightCycle;
     public float dayFloat = 0;
-    public int dayTime = fullDay / 5;
+    public int dayTime = 2000;
     public const int fullDay = 54000;
     public float dayLuminosity = 1;
     public string worldName = "null";
@@ -139,6 +147,12 @@ public class GameManager : MonoBehaviour
     public AudioSource ostSource;
     public AudioSource breakSoundSource;
     public float breakSoundCooldown = 0f;
+    public AudioLowPassFilter audioPassFilter;
+
+    public ArmorBarController armorBarController;
+    public GameObject damageTextPrefab;
+
+    public Transform celestialBodies;
 
     public bool InGame
     {
@@ -152,58 +166,29 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void OnValidate()
-    {
-        TileCollisionType = new int[temp.Length];
-
-        for(int i = 0; i < temp.Length; i++)
-        {
-
-            if (temp[i] == "")
-            {
-                TileCollisionType[i] = 0;
-            }
-            if (temp[i] == "#")
-            {
-                TileCollisionType[i] = 1;
-            }
-            if (temp[i] == "=")
-            {
-                TileCollisionType[i] = 2;
-            }
-            if (temp[i] == "~")
-            {
-                TileCollisionType[i] = 3;
-            }
-        }
-    }
-
     public void UpdateEntitiesRB2D(bool value)
     {
-        Rigidbody2D[] rigidbodys = FindObjectsOfType<Rigidbody2D>();
+        Rigidbody2D[] rigidbodys = entitiesContainer.GetComponentsInChildren<Rigidbody2D>();
         foreach (Rigidbody2D rigidbody2D in rigidbodys)
         {
-            rigidbody2D.simulated = value;
+            if (rigidbody2D.simulated != value)
+                rigidbody2D.simulated = value;
+        }
+
+        rigidbodys = dummyObjects.GetComponentsInChildren<Rigidbody2D>();
+        foreach (Rigidbody2D rigidbody2D in rigidbodys)
+        {
+            if (rigidbody2D.simulated != value)
+                rigidbody2D.simulated = value;
         }
     }
 
-    void Start()
+    private void Awake()
     {
         gameManagerReference = this;
-
-        //Setup
-
-
-        skyboxColor = Camera.main.backgroundColor;
-        Time.timeScale = 1.0f;
-        soundController = GameObject.Find("Audio").GetComponent<MainSoundController>();
+        OnWorldRounding = delegate { };
 
         worldName = GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0];
-        persistentDataPath = Application.persistentDataPath;
-
-        if (GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("isNetworkLoad")[0] == "true") isNetworkClient = true;
-        if (Server.isOpen) isNetworkHost = true;
-
         int rootPlanetIdx = worldName.IndexOf("/");
         if (rootPlanetIdx >= 0)
         {
@@ -214,6 +199,20 @@ public class GameManager : MonoBehaviour
         {
             worldRootName = worldName;
         }
+
+        persistentDataPath = Application.persistentDataPath;
+    }
+
+    void Start()
+    {
+        skyboxColor = Camera.main.backgroundColor;
+        Time.timeScale = 1.0f;
+        soundController = GameObject.Find("Audio").GetComponent<MainSoundController>();
+
+        if (GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("isNetworkLoad")[0] == "true") isNetworkClient = true;
+        if (Server.isOpen) isNetworkHost = true;
+
+       
 
         if (!isNetworkClient)
         {
@@ -288,8 +287,21 @@ public class GameManager : MonoBehaviour
             }
             else
             {
-                DataSaver.SaveStats(new string[] { (fullDay / 5) + "" }, Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/daytime.lgrsd");
+                DataSaver.SaveStats(new string[] { 2000 + "" }, Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/daytime.lgrsd");
             }
+
+            if (DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/worlds/" + worldRootName + @"/difficulty.lgrsd"))
+            {
+                gameDifficulty = (Difficulty)ManagingFunctions.ConvertStringToIntArray(DataSaver.LoadStats(Application.persistentDataPath + @"/worlds/" + worldRootName + @"/difficulty.lgrsd").SavedData)[0];
+            }
+            else
+            {
+                DataSaver.SaveStats(new string[] { "1" }, Application.persistentDataPath + @"/worlds/" + worldRootName + @"/difficulty.lgrsd");
+            }
+        }
+        else
+        {
+            gameDifficulty = Client.difficulty;
         }
 
         PlanetMenuController.planetMenu = MenuController.menuController.canvas.transform.Find("PlanetsPanel").GetComponent<PlanetMenuController>();
@@ -316,7 +328,7 @@ public class GameManager : MonoBehaviour
         }
 
 
-
+        armorBarController.Initialize(equipedArmor);
 
         frameTimer = 0;
         Transition.SetActive(true);
@@ -333,19 +345,21 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            respawnPosition = new Vector2(WorldWidth * 16 / 2, SearchForClearSpawn(WorldWidth * 16 / 2) + 2);
+            respawnPosition = RespawnPosition();
         }
 
         player.Respawn(respawnPosition.x, respawnPosition.y);
-        GameObject.Find("IlluminationCape").GetComponent<LightControllerCurrent>().AddRenderQueue(player.transform.position);
+
         inGame = true;
         playerFocused = true;
         StartCoroutine(CheckChunks());
+        Transition.transform.GetChild(0).GetChild(0).GetComponent<UnityEngine.UI.Text>().text = "Done!";
         StartCoroutine(ManageTransition("CanStart", true, 1f));
         Invoke("UpdateChunksActive", 0.1f);
+        GameObject.Find("IlluminationCape").GetComponent<LightControllerCurrent>().AddRenderQueue(player.transform.position);
 
-        if(!isNetworkClient)
-        LoadEntities();
+        if (!isNetworkClient)
+            LoadEntities();
     }
 
 
@@ -357,7 +371,9 @@ public class GameManager : MonoBehaviour
 
         if (inGame)
         {
-            if(ostCooldown > 0f)
+            audioPassFilter.enabled = false;
+
+            if (ostCooldown > 0f)
             {
                 ostCooldown -= Time.deltaTime;
             }
@@ -369,22 +385,22 @@ public class GameManager : MonoBehaviour
 
             frameTimerAdder += Time.deltaTime;
 
-            if (frameTimerAdder > 0.016f)
+            if (frameTimerAdder >= 0.016665f)//aprox 1 frame duration on 60FPS
             {
-                while (frameTimerAdder >= 0.016f)
+                while (frameTimerAdder >= 0.016665f)
                 {
-                    frameTimerAdder -= 0.016f;
+                    frameTimerAdder -= 0.016665f;
                 }
                 addedFrameThisFrame = true;
                 frameTimer++;
             }
 
-            dayFloat += Time.deltaTime * 60;
+            dayFloat += Time.deltaTime;
 
-            while (dayFloat >= 1)
+            while (dayFloat >= 0.016665f)
             {
                 dayTime++;
-                dayFloat--;
+                dayFloat -= 0.016665f;
             }
 
             if (frameTimer > 2000000000)
@@ -532,17 +548,17 @@ public class GameManager : MonoBehaviour
                 ScreenCapture.CaptureScreenshot(Application.persistentDataPath + @"/screenshots/screenshot" + freeFile + ".png");
             }
 
-            if (!building || (building && !canRotate[chosenBrush]))
-            {
-                buildRotation = 0;
-            }
-            else
-            {
-                if (GInput.GetKeyDown(KeyCode.R))
-                {
-                    buildRotation = (int)Mathf.Repeat(buildRotation - 90, 360);
-                }
-            }
+            //if (!building || (building && !canRotate[chosenBrush]))
+            //{
+            //    buildRotation = 0;
+            //}
+            //else
+            //{
+            //    if (GInput.GetKeyDown(KeyCode.R))
+            //    {
+            //        buildRotation = (int)Mathf.Repeat(buildRotation - 90, 360);
+            //    }
+            //}
 
             //EVENTS
 
@@ -561,9 +577,16 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
+        else
+        {
+            audioPassFilter.enabled = true;
+        }
 
         savingText.SetActive(isSavingData);
         mouseLastPosition = mouseCurrentPosition;
+
+        ostSource.volume += Time.deltaTime;
+
         UpdateEntitiesRB2D(InGame);
 
 
@@ -576,7 +599,17 @@ public class GameManager : MonoBehaviour
     {
         if (ostCooldown <= 0f)
         {
-            if (type == "cave")
+            if(type == "surface")
+            {
+                AudioClip clip = surfaceOST[Random.Range(0, surfaceOST.Length)];
+
+                ostSource.Stop();
+                ostSource.clip = clip;
+                ostSource.Play();
+
+                ostCooldown = clip.length * Random.Range(5, 15);
+            }
+            else if (type == "cave")
             {
                 AudioClip clip = caveOST[Random.Range(0, caveOST.Length)];
 
@@ -584,7 +617,7 @@ public class GameManager : MonoBehaviour
                 ostSource.clip = clip;
                 ostSource.Play();
 
-                ostCooldown = clip.length * Random.Range(15, 35);
+                ostCooldown = clip.length * Random.Range(5, 15);
             }
 
         }
@@ -607,7 +640,7 @@ public class GameManager : MonoBehaviour
                     breakSoundCooldown = clip.length * breakSoundSource.pitch + 0.01f;
                 }
             }
-    }  
+    }
 
     public int EquipItem(int equipPiece, string type)
     {
@@ -625,6 +658,18 @@ public class GameManager : MonoBehaviour
         {
             idx = 2;
         }
+        else if (type == "helmetAcc")
+        {
+            idx = 3;
+        }
+        else if (type == "chestplateAcc")
+        {
+            idx = 4;
+        }
+        else if (type == "bootsAcc")
+        {
+            idx = 5;
+        }
 
 
         int returnVal = equipedArmor[idx];
@@ -633,6 +678,11 @@ public class GameManager : MonoBehaviour
 
         return returnVal;
     }
+
+    //public void DisplayDamage(int dmg, Vector2 position)
+    //{
+    //    Instantiate(damageTextPrefab, position, Quaternion.identity).GetComponent<DamageText>().StartCall(dmg);
+    //}
 
     public int GetCapacityOfCore(int core)
     {
@@ -692,7 +742,7 @@ public class GameManager : MonoBehaviour
 
                     for (int e = 0; e < tileAmount; e++)
                     {
-                        if (!StackBar.AddItem(tile))
+                        if (!StackBar.AddItemInv(tile))
                         {
                             ManagingFunctions.DropItem(tile, player.transform.position);
                         }
@@ -708,25 +758,50 @@ public class GameManager : MonoBehaviour
 
     public void LoadEntities()
     {
-        if(DataSaver.CheckIfFileExists(persistentDataPath + @"/worlds/" + worldName + @"/ent.lgrsd"))
+        if (DataSaver.CheckIfFileExists(persistentDataPath + @"/worlds/" + worldName + @"/ent.lgrsd"))
         {
             string[] entities = DataSaver.LoadStats(persistentDataPath + @"/worlds/" + worldName + @"/ent.lgrsd").SavedData;
 
-            foreach(string entity in entities)
+            foreach (string entity in entities)
             {
                 string[] datas = entity.Split(';');
 
                 Vector2 spawnPos = new Vector2(System.Convert.ToSingle(datas[2]), System.Convert.ToSingle(datas[3]));
                 int entityHp = System.Convert.ToInt32(datas[1]);
                 string entityType = datas[0];
+                string[] args = null;
+                if (datas.Length > 4)
+                    args = datas[4].Split('#');
+
                 EntityBase entityBase = null;
 
-                SpawnEntity(StringToEntity(entityType), null, spawnPos);
+                entityBase = SpawnEntity(StringToEntity(entityType), args, spawnPos);
 
                 if (entityBase != null)
                 {
                     entityBase.Hp = entityHp;
+                    if(entityBase.EntityCommonScript != null)
+                    {
+                        entityBase.EntityCommonScript.saveToFile = true;
+                    }
                 }
+            }
+        }
+
+        if (DataSaver.CheckIfFileExists(persistentDataPath + @"/worlds/" + worldName + @"/dro.lgrsd"))
+        {
+            string[] drops = DataSaver.LoadStats(persistentDataPath + @"/worlds/" + worldName + @"/dro.lgrsd").SavedData;
+            foreach (string drop in drops)
+            {
+                string[] datas = drop.Split(';');
+
+                Vector2 spawnPos = new Vector2(System.Convert.ToSingle(datas[2]), System.Convert.ToSingle(datas[3]));
+                Vector2 spawnVelocity = new Vector2(System.Convert.ToSingle(datas[4]), System.Convert.ToSingle(datas[5]));
+                int item = System.Convert.ToInt32(datas[0]);
+                int amount = System.Convert.ToInt32(datas[1]);
+                float imunityGrab = System.Convert.ToSingle(datas[6]);
+
+                ManagingFunctions.DropItem(item, spawnPos, spawnVelocity, amount, imunityGrab);
             }
         }
     }
@@ -741,14 +816,18 @@ public class GameManager : MonoBehaviour
                 return "nanobot2";
             case Entities.NanoBotT3:
                 return "nanobot3";
+            case Entities.NanoBotT5:
+                return "nanobot5";
             case Entities.TheDestroyer:
                 return "destroyer";
-            case Entities.KrotekBoss:
+            case Entities.Krotek:
                 return "krotek";
             case Entities.Darkn:
                 return "darkn";
             case Entities.Raideon:
                 return "raideon";
+            case Entities.Sheep:
+                return "sheep";
             default:
                 return "null";
         }
@@ -764,14 +843,18 @@ public class GameManager : MonoBehaviour
                 return Entities.NanoBotT2;
             case "nanobot3":
                 return Entities.NanoBotT3;
+            case "nanobot5":
+                return Entities.NanoBotT5;
             case "destroyer":
                 return Entities.TheDestroyer;
             case "krotek":
-                return Entities.KrotekBoss;
+                return Entities.Krotek;
             case "darkn":
                 return Entities.Darkn;
             case "raideon":
                 return Entities.Raideon;
+            case "sheep":
+                return Entities.Sheep;
             default:
                 return Entities.x;
         }
@@ -783,31 +866,39 @@ public class GameManager : MonoBehaviour
 
         if (entityType == Entities.NanoBotT1)
         {
-            entityBase = ENTITY_NanoBotT1.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_NanoBotT1.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.NanoBotT2)
+        else if (entityType == Entities.NanoBotT2)
         {
-            entityBase = ENTITY_NanoBotT2.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_NanoBotT2.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.NanoBotT3)
+        else if (entityType == Entities.NanoBotT3)
         {
-            entityBase = ENTITY_NanoBotT3.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_NanoBotT3.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.Darkn)
+        else if (entityType == Entities.NanoBotT5)
         {
-            entityBase = UNIT_Darkn.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_NanobotT5.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.TheDestroyer)
+        else if (entityType == Entities.Darkn)
         {
-            entityBase = ENTITY_TheDestroyer.StaticSpawn(null, spawnPos);
+            entityBase = UNIT_Darkn.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.KrotekBoss)
+        else if (entityType == Entities.TheDestroyer)
         {
-            entityBase = ENTITY_KrotekController.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_TheDestroyer.StaticSpawn(args, spawnPos);
         }
-        if (entityType == Entities.Raideon)
+        else if (entityType == Entities.Krotek)
         {
-            entityBase = ENTITY_Raideon.StaticSpawn(null, spawnPos);
+            entityBase = ENTITY_KrotekController.StaticSpawn(args, spawnPos);
+        }
+        else if (entityType == Entities.Raideon)
+        {
+            entityBase = ENTITY_Raideon.StaticSpawn(args, spawnPos);
+        }
+        else if (entityType == Entities.Sheep)
+        {
+            entityBase = ENTITY_Sheep.StaticSpawn(args, spawnPos);
         }
 
         //entityBase.IsLocal = !isNetworkClient;
@@ -816,66 +907,15 @@ public class GameManager : MonoBehaviour
 
     private void SetSkybox()
     {
-        float value = 1;
-        bool afterMiddleDay = dayTime > (fullDay / 2);
+        float value = dayNightCycle.Evaluate((float)dayTime / fullDay);
 
-        if (!afterMiddleDay)
-        {
-            value = (float)dayTime / (fullDay / 2);
-        }
-        else
-        {
-            value = 1f - ((float)dayTime / (fullDay / 2)) + 1f;
-        }
-
-
-        if (!afterMiddleDay)
-        {
-            if (value > 0.05f)
-            {
-                value = value * 2;
-            }
-            else if (value > 0.1f)
-            {
-                value = value * 3;
-            }
-            else if (value > 0.2f)
-            {
-                value = value * 4;
-            }
-            else if (value > 0.3f)
-            {
-                value = value * 5;
-            }
-        }
-        else
-        {
-            if (value < 0.3f)
-            {
-                value = value / 10f;
-            }
-            else if (value < 0.6f)
-            {
-                value = value / 5f;
-            }
-            else if (value < 0.65f)
-            {
-                value = value / 2f;
-            }
-            else if (value < 0.7f)
-            {
-                value = value / 1.6f;
-            }
-            else if (value < 0.75f)
-            {
-                value = value / 1.2f;
-            }
-        }
+        celestialBodies.eulerAngles = Vector3.forward * (((float)dayTime / fullDay) * -180 - 45f);
 
         dayLuminosity = Mathf.Clamp(value, 0.1f, 1);
 
-        if(raining)
+        if (raining)
             dayLuminosity = Mathf.Clamp(value, 0.1f, 0.25f);
+
 
         daytimeUpdatedSkyboxColor = skyboxColor * dayLuminosity;
     }
@@ -925,42 +965,91 @@ public class GameManager : MonoBehaviour
                     {
                         entity.EntityType + ";",
                         entity.entityBase.Hp + ";",
-                        entity.transform.position.x + ";" + entity.transform.position.y
+                        entity.transform.position.x + ";",
+                        entity.transform.position.y+ ";",
                     };
+                    if (entity.entityBase != null)
+                    {
+                        string[] args = entity.entityBase.GenerateArgs();
+
+                        if (args == null)
+                            toEncrypt.Add(string.Join("#", new string[] { "" }));
+                        else
+                            toEncrypt.Add(string.Join("#", entity.entityBase.GenerateArgs()));
+                    }
+
                     entities.Add(string.Join("", toEncrypt.ToArray()));
                 }
             }
-            string[] playerPosition = new string[] { player.transform.position.x + ";" + player.transform.position.y };
+
+            //Vector2 spawnPos = new Vector2(System.Convert.ToSingle(datas[2]), System.Convert.ToSingle(datas[3]));
+            //Vector2 spawnVelocity = new Vector2(System.Convert.ToSingle(datas[4]), System.Convert.ToSingle(datas[5]));
+            //int item = System.Convert.ToInt32(datas[0]);
+            //int amount = System.Convert.ToInt32(datas[1]);
+            //int imunityGrab = System.Convert.ToInt32(datas[6]);
+
+            DroppedItemController[] drops = ManagingFunctions.dropContainer.GetComponentsInChildren<DroppedItemController>(true);
+
+            List<string> dropsSaves = new List<string>();
+
+            foreach (DroppedItemController drop in drops)
+            {
+                List<string> toEncrypt = new List<string>
+                {
+                     drop.item + "",
+                     drop.amount + "",
+                     drop.transform.position.x + "",
+                     drop.transform.position.y + "",
+                     drop.GetComponent<Rigidbody2D>().velocity.x + "",
+                     drop.GetComponent<Rigidbody2D>().velocity.y + "",
+                     drop.imunityGrab + ""
+                };
+
+                dropsSaves.Add(string.Join(";", toEncrypt.ToArray()));
+            }
+
+            string[] playerPosition;
+            if (player.alive)
+                playerPosition = new string[] { player.transform.position.x + ";" + player.transform.position.y };
+            else
+            {
+                Vector2 respawnPos = RespawnPosition();
+                playerPosition = new string[] { respawnPos.x + ";" + respawnPos.y };
+            }
+                
 
             if (alternateThread)
             {
-                Thread mapSave = new Thread(new ThreadStart(() => SaveGameDataThread(entities.ToArray(), playerPosition)));
+                Thread mapSave = new Thread(new ThreadStart(() => SaveGameDataThread(entities.ToArray(), playerPosition, dropsSaves.ToArray())));
                 mapSave.Start();
             }
             else
             {
-                SaveGameDataThread(entities.ToArray(), playerPosition);
+                SaveGameDataThread(entities.ToArray(), playerPosition, dropsSaves.ToArray());
             }
         }
     }
 
-    private void SaveGameDataThread(string[] entities, string[] playerPosition)
+    private void SaveGameDataThread(string[] entities, string[] playerPosition, string[] drops)
     {
         isSavingData = true;
 
         if (!isNetworkClient)
         {
             DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(allMapGrid), persistentDataPath + @"/worlds/" + worldName + @"/map.lgrsd");
+            DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(allBackgroundGrid), persistentDataPath + @"/worlds/" + worldName + @"/bgmap.lgrsd");
             DataSaver.SaveStats(allMapProp, persistentDataPath + @"/worlds/" + worldName + @"/mapprop.lgrsd");
             DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(equipedArmor), persistentDataPath + @"/worlds/" + worldName + @"/equips.lgrsd");
             DataSaver.SaveStats(new string[] { currentHexPlanetColor }, persistentDataPath + @"/worlds/" + worldName + @"/planetColor.lgrsd");
             DataSaver.SaveStats(new string[] { dayTime + "" }, persistentDataPath + @"/worlds/" + worldName + @"/daytime.lgrsd");
             DataSaver.SaveStats(new string[] { currentPlanetName }, persistentDataPath + @"/worlds/" + worldRootName + @"/lastLocation.lgrsd");
 
+            DataSaver.SaveStats(drops, persistentDataPath + @"/worlds/" + worldName + @"/dro.lgrsd");
             DataSaver.SaveStats(entities, persistentDataPath + @"/worlds/" + worldName + @"/ent.lgrsd");
             DataSaver.SaveStats(playerPosition, persistentDataPath + @"/worlds/" + worldName + @"/spawnpoint.lgrsd");
-            DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(TechManager.techTree.fullyUnlockedItems.ToArray()), persistentDataPath + @"/worlds/" + worldName + @"/tech.lgrsd");
+            DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(TechManager.techTree.fullyUnlockedItems.ToArray()), persistentDataPath + @"/worlds/" + worldRootName + @"/tech.lgrsd");
             ManagingFunctions.SaveStackBarAndInventory();
+            NodeManager.self.Save();
         }
 
         isSavingData = false;
@@ -974,6 +1063,7 @@ public class GameManager : MonoBehaviour
         if (isNetworkClient)
         {
             mapGrid = Client.worldMapLoad;
+            allBackgroundGrid = Client.backgroundMapLoad;
             WorldHeight = Client.worldProportionsLoad[0];
             WorldWidth = Client.worldProportionsLoad[1];
             allMapProp = Client.worldMapPropLoad;
@@ -1006,8 +1096,11 @@ public class GameManager : MonoBehaviour
     {
         WorldWidth = ManagingFunctions.ConvertStringToIntArray(GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("newWorldSize"))[0];
         WorldHeight = ManagingFunctions.ConvertStringToIntArray(GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("newWorldSize"))[1];
+        gameDifficulty = (Difficulty)ManagingFunctions.ConvertStringToIntArray(GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("newWorldDifficulty"))[0];
+        DataSaver.SaveStats(new string[] { (int)gameDifficulty + "" }, Application.persistentDataPath + @"/worlds/" + worldName + @"/difficulty.lgrsd");
 
         int[] buildedMapGrid = new int[(WorldWidth * 16) * WorldHeight];
+        allBackgroundGrid = new int[(WorldWidth * 16) * WorldHeight];
         string[] mapBiomes = new string[WorldWidth];
         string[] biomes = { "meadow", "forest", "mountain", "ocean" };
         float[] biomeProbability = { 10, 15, 5, 0 };
@@ -1030,8 +1123,8 @@ public class GameManager : MonoBehaviour
 
         for (int i = 0; i < worldTileHeight.Length; i++)
         {
-            worldTileHeight[i] = (int)((Mathf.PerlinNoise(i * 0.04f, aaa) * 0.4f + Mathf.PerlinNoise(i * 0.01f, aaa) * 0.6f) * (WorldHeight / 3)) + (WorldHeight / 2 /*0.5*/);
-            if(i > worldTileHeight.Length - 16)
+            worldTileHeight[i] = (int)((Mathf.PerlinNoise(i * 0.04f, aaa) * 0.4f + Mathf.PerlinNoise(i * 0.02f, aaa) * 0.6f) * (WorldHeight / 3)) + (WorldHeight / 2 /*0.5*/);
+            if (i > worldTileHeight.Length - 16)
             {
                 worldTileHeight[i] = (int)Mathf.Lerp(worldTileHeight[i], worldTileHeight[0], (i - (worldTileHeight.Length - 16f)) / 16f);
             }
@@ -1085,7 +1178,20 @@ public class GameManager : MonoBehaviour
             {
                 for (int i2 = 0; i2 < 16; i2++)
                 {
-                    floorUndergroundEnd = worldTileHeight[i * 16 + i2] - Random.Range(2, 6);
+
+
+                    if (worldTileHeight[i * 16 + i2] < WorldHeight * 0.66f)
+                    {
+                        floorSurfTile = 113;
+                        floorUndergroundTile = 113;
+                        floorUndergroundEnd = worldTileHeight[i * 16 + i2] - Random.Range(4, 8);
+                    }
+                    else
+                    {
+                        floorSurfTile = 1;
+                        floorUndergroundTile = 7;
+                        floorUndergroundEnd = worldTileHeight[i * 16 + i2] - Random.Range(3, 6);
+                    }
 
                     for (int e = 0; e < WorldHeight; e++)
                     {
@@ -1096,9 +1202,21 @@ public class GameManager : MonoBehaviour
                             if (Random.Range(0, e + 1) == 0)
                             {
                                 buildedMapGrid[idx] = 13;
+                                
+                                if(e == 4 && Random.Range(0,2) == 0)
+                                {
+                                    if(buildedMapGrid[idx + 1] == 6)
+                                    {
+                                        buildedMapGrid[idx + 1] = 117;
+                                    }
+                                }
+                            }
+                            else if(Random.Range(0, 2) == 0)
+                            {
+                                buildedMapGrid[idx] = 118;
                             }
                         }
-                        if (!(e > floorUndergroundEnd) && buildedMapGrid[idx] == 6)
+                        if (e <= floorUndergroundEnd && buildedMapGrid[idx] == 6)
                         {
                             if (e < floorUndergroundEnd * 0.9f && e > floorUndergroundEnd * 0.65f && Random.Range(0, 15) == 0)
                             {
@@ -1145,11 +1263,11 @@ public class GameManager : MonoBehaviour
                         {
                             buildedMapGrid[idx] = floorUndergroundTile;
                         }
-                        if (e == floorUndergroundEnd && Random.Range(0,24) == 0)
+                        if (e == floorUndergroundEnd && Random.Range(0, 24) == 0)
                         {
                             buildedMapGrid[idx] = 4;
                             int max = Random.Range(0, 7);
-                            for(int it = 0; it < max; it++)
+                            for (int it = 0; it < max; it++)
                             {
                                 if (buildedMapGrid[idx - it] == 6)
                                 {
@@ -1189,18 +1307,42 @@ public class GameManager : MonoBehaviour
                         }
                         if (Random.Range(0, 3) == 0 && i2 < 14 && i2 > 3 && e > worldTileHeight[i * 16 + i2])
                         {
-                            if (buildedMapGrid[idx - 1] == 1 && buildedMapGrid[idx] == 0 &&
-                                buildedMapGrid[idx + WorldHeight] != 53 && buildedMapGrid[idx - WorldHeight] != 53
-                                && buildedMapGrid[idx + WorldHeight * 2] != 53 && buildedMapGrid[idx - WorldHeight * 2] != 53)
+                            if (buildedMapGrid[idx] == 0)
                             {
-                                buildedMapGrid[idx] = 53;
-                                buildedMapGrid[idx + 1] = 53;
-                                buildedMapGrid[idx + 2 + WorldHeight] = 55;
-                                buildedMapGrid[idx + 2] = 55;
-                                buildedMapGrid[idx + 2 - WorldHeight] = 55;
-                                buildedMapGrid[idx + 3 + WorldHeight] = 55;
-                                buildedMapGrid[idx + 3] = 55;
-                                buildedMapGrid[idx + 3 - WorldHeight] = 55;
+                                if (buildedMapGrid[idx - 1] == 1 &&
+                                    buildedMapGrid[idx + WorldHeight] != 53 && buildedMapGrid[idx - WorldHeight] != 53
+                                    && buildedMapGrid[idx + WorldHeight * 2] != 53 && buildedMapGrid[idx - WorldHeight * 2] != 53)
+                                {
+                                    buildedMapGrid[idx] = 53;
+                                    buildedMapGrid[idx + 1] = 53;
+                                    buildedMapGrid[idx + 2 + WorldHeight] = 55;
+                                    buildedMapGrid[idx + 2] = 55;
+                                    buildedMapGrid[idx + 2 - WorldHeight] = 55;
+                                    buildedMapGrid[idx + 3 + WorldHeight] = 55;
+                                    buildedMapGrid[idx + 3] = 55;
+                                    buildedMapGrid[idx + 3 - WorldHeight] = 55;
+                                }
+                                else if (buildedMapGrid[idx - 1] == 113 &&
+                                   buildedMapGrid[idx + WorldHeight] != 53 && buildedMapGrid[idx - WorldHeight] != 53
+                                   && buildedMapGrid[idx + WorldHeight * 2] != 53 && buildedMapGrid[idx - WorldHeight * 2] != 53)
+                                {
+                                    buildedMapGrid[idx] = 53;
+                                    buildedMapGrid[idx + 1] = 53;
+                                    buildedMapGrid[idx + 2] = 53;
+                                    buildedMapGrid[idx + 3] = 55;
+                                    buildedMapGrid[idx + 4 + WorldHeight] = 55;
+                                    buildedMapGrid[idx + 4 + WorldHeight * 2] = 55;
+                                    buildedMapGrid[idx + 3 + WorldHeight * 2] = 55;
+                                    buildedMapGrid[idx + 3 + WorldHeight] = 55;
+                                    buildedMapGrid[idx + 4] = 55;
+                                    buildedMapGrid[idx + 4 - WorldHeight] = 55;
+                                    buildedMapGrid[idx + 4 - WorldHeight * 2] = 55;
+                                    buildedMapGrid[idx + 3 - WorldHeight * 2] = 55;
+                                    buildedMapGrid[idx + 3 - WorldHeight] = 55;
+                                    buildedMapGrid[idx + 5 + WorldHeight] = 55;
+                                    buildedMapGrid[idx + 5] = 55;
+                                    buildedMapGrid[idx + 5 - WorldHeight] = 55;
+                                }
                             }
                         }
 
@@ -1241,7 +1383,38 @@ public class GameManager : MonoBehaviour
                                 {
                                     buildedMapGrid[cavesIdx] = 21;
                                 }
-                        if(y < WorldHeight * 0.06f)
+                        if (y < WorldHeight * 0.06f)
+                        {
+                            buildedMapGrid[cavesIdx] = 21;
+                            if(buildedMapGrid[cavesIdx - 1] == 6)
+                            {
+                                buildedMapGrid[cavesIdx - 1] = 117;
+
+                                if (buildedMapGrid[cavesIdx - 2] == 6)
+                                {
+                                    buildedMapGrid[cavesIdx - 2] = 118;
+                                }
+                            }
+                            else if (buildedMapGrid[cavesIdx - 1] == 118)
+                            {
+                                buildedMapGrid[cavesIdx - 1] = 117;
+                            }
+                        }
+                    }
+                    else if (cavesGeneration.GetPixel(x, y).a > 0.96f && y < floorUndergroundEnd * Random.Range(0.5f, 0.4f) && y > 3)
+                    {
+                        buildedMapGrid[cavesIdx] = 17;
+                        if (y > WorldHeight * 0.2f)
+                            if (Random.Range(0, (WorldHeight - y) / 2) == 0)
+                            {
+                                buildedMapGrid[cavesIdx] = 62;
+                            }
+                            else if (y < WorldHeight * 0.3)
+                                if (Random.Range(0, y * 2) == 0 && buildedMapGrid[cavesIdx - 1] == 6)
+                                {
+                                    buildedMapGrid[cavesIdx] = 21;
+                                }
+                        if (y < WorldHeight * 0.06f)
                         {
                             buildedMapGrid[cavesIdx] = 21;
                         }
@@ -1255,7 +1428,7 @@ public class GameManager : MonoBehaviour
 
         //STRUCTURES
         {
-            for(int i = 0; i < WorldWidth / 5; i++)//chests
+            for (int i = 0; i < WorldWidth / 5; i++)//chests
             {
                 int yPosition = Random.Range((int)(WorldHeight * 0.1f), (int)(WorldHeight * 0.3f));
                 int xPosition = Random.Range(0, WorldWidth * 16);
@@ -1284,18 +1457,18 @@ public class GameManager : MonoBehaviour
                 else i--;
             }
 
-            if(isLorePlanet)
+            if (isLorePlanet)
             {//lost storage center
                 int xPosition = Random.Range(0, WorldWidth * 15);
                 int yPosition = Random.Range(20, 30);
 
                 for (int dx = xPosition; dx < xPosition + 4; dx++)
                 {
-                    for(int dy = yPosition; dy < yPosition + 4; dy++)
+                    for (int dy = yPosition; dy < yPosition + 4; dy++)
                     {
                         int idx = dy + (dx * WorldHeight);
 
-                        buildedMapGrid[idx] = 105;
+                        allBackgroundGrid[idx] = 105;
 
                         if (dy == yPosition)
                             buildedMapGrid[idx] = 6;
@@ -1345,10 +1518,10 @@ public class GameManager : MonoBehaviour
 
             if (currentPlanetName == "Korenz" || currentPlanetName == "Intersection")//enemy center
             {
-                int xPosition = Random.Range(0, WorldWidth * 15);
+                int xPosition = Random.Range(0, (int)(WorldWidth * 15 * 0.2f));
                 int yPosition = WorldHeight / 10 * 9;
 
-                while(yPosition > 0)
+                while (yPosition > 0)
                 {
                     int idx = yPosition + (xPosition * WorldHeight);
 
@@ -1366,12 +1539,28 @@ public class GameManager : MonoBehaviour
 
                         buildedMapGrid[idx] = 18;
 
-                        if(dy == yPosition)
-                            buildedMapGrid[idx] = 7;
-
-                        if(dx == xPosition)
+                        if (dy == yPosition)
                         {
-                            if(dy == yPosition + 1 || dy == yPosition + 2)
+                            int e = idx - 1;
+                            int pallete = 7;
+                            while(TileCollisionType[buildedMapGrid[e]] != 1)
+                            {
+                                e--;
+                            }
+                            pallete = buildedMapGrid[e];
+
+                            e = idx - 1;
+                            while(TileCollisionType[buildedMapGrid[e]] != 1)
+                            {
+                                buildedMapGrid[e] = pallete;
+                                e--;
+                            }
+                        }
+
+
+                        if (dx == xPosition)
+                        {
+                            if (dy == yPosition + 1 || dy == yPosition + 2)
                             {
                                 buildedMapGrid[idx] = 107;
                             }
@@ -1384,37 +1573,45 @@ public class GameManager : MonoBehaviour
 
                         if (dx == xPosition + 1)
                         {
-                            if(dy == yPosition + 1)
+                            if (dy == yPosition + 1)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 2)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 3)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 4)
                             {
                                 buildedMapGrid[idx] = 88;
+                                allBackgroundGrid[idx] = 107;
                             }
                             if (dy == yPosition + 6)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 7)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 8)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 9)
                             {
                                 buildedMapGrid[idx] = 88;
+                                allBackgroundGrid[idx] = 107;
                             }
                             if (dy == yPosition + 11)
                             {
@@ -1439,6 +1636,7 @@ public class GameManager : MonoBehaviour
                             else
                             {
                                 buildedMapGrid[idx] = 110;
+                                allBackgroundGrid[idx] = 107;
                             }
                         }
 
@@ -1446,35 +1644,43 @@ public class GameManager : MonoBehaviour
                         {
                             if (dy == yPosition + 1)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 2)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 3)
                             {
-                                buildedMapGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
+                                allBackgroundGrid[idx] = 107;
                             }
                             if (dy == yPosition + 4)
                             {
                                 buildedMapGrid[idx] = 88;
+                                allBackgroundGrid[idx] = 107;
                             }
                             if (dy == yPosition + 6)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 7)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 8)
                             {
-                                buildedMapGrid[idx] = 107;
+                                allBackgroundGrid[idx] = 107;
+                                buildedMapGrid[idx] = 0;
                             }
                             if (dy == yPosition + 9)
                             {
                                 buildedMapGrid[idx] = 88;
+                                allBackgroundGrid[idx] = 107;
                             }
                             if (dy == yPosition + 11)
                             {
@@ -1511,10 +1717,12 @@ public class GameManager : MonoBehaviour
                     int idx = y + (xPosition * WorldHeight);
                     if (y > 35)
                         buildedMapGrid[idx] = 110;
-                    else if(y == 35)
+                    else if (y == 35)
                         buildedMapGrid[idx] = 109;
                     else
                         buildedMapGrid[idx] = 0;
+
+                    allBackgroundGrid[idx] = 107;
 
                     if (y == 21)
                     {
@@ -1531,9 +1739,11 @@ public class GameManager : MonoBehaviour
 
         DataSaver.CreateTxt(Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/mapBiomes.lgrsd", mapBiomes);
         DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(buildedMapGrid), Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/map.lgrsd");
+        DataSaver.SaveStats(ManagingFunctions.ConvertIntToStringArray(allBackgroundGrid), Application.persistentDataPath + @"/worlds/" + GameObject.Find("SaveObject").GetComponent<ComponetSaver>().LoadData("worldName")[0] + @"/bgmap.lgrsd");
 
-        int[] sg = { 22, 23, 24, 0, 0, 0, 0, 0, 16 };
-        int[] sa = { 1, 1, 1, 0, 0, 0, 0, 0, 1 };
+
+        int[] sg = { 24, 16, 0, 0, 0, 0, 0, 0, 0 };
+        int[] sa = { 1, 1, 0, 0, 0, 0, 0, 0, 0 };
         int[] ig = new int[36];
         int[] ia = new int[36];
         int[] wp = { WorldWidth, WorldHeight };
@@ -1571,6 +1781,21 @@ public class GameManager : MonoBehaviour
                 allMapProp[i] = "null";
             }
         }
+
+        if (DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/worlds/" + worldName + @"/bgmap.lgrsd") && !isNetworkClient)
+        {
+            allBackgroundGrid = ManagingFunctions.ConvertStringToIntArray(DataSaver.LoadStats(Application.persistentDataPath + @"/worlds/" + worldName + @"/bgmap.lgrsd").SavedData);
+        }
+        else if (!isNetworkClient)
+        {
+            allBackgroundGrid = new int[buildedMapGrid.Length];
+
+            for (int i = 0; i < allBackgroundGrid.Length; i++)
+            {
+                allBackgroundGrid[i] = 0;
+            }
+        }
+
 
         return buildedMapGrid;
     }
@@ -1618,10 +1843,11 @@ public class GameManager : MonoBehaviour
         {
             for (int e = 0; e < WorldHeight; e++)
             {
-                int tileSet = 0;
-                tileSet = allMapGrid[spawnedIdxs + tileIdx];
+                int tileSet = allMapGrid[spawnedIdxs + tileIdx];
+                int bgTileSet = allBackgroundGrid[spawnedIdxs + tileIdx];
                 string tileProp = allMapProp[spawnedIdxs + tileIdx];
                 newChunk.GetComponent<ChunkController>().TileGrid[tileIdx] = tileSet;
+                newChunk.GetComponent<ChunkController>().BackgroundTileGrid[tileIdx] = bgTileSet;
                 newChunk.GetComponent<ChunkController>().TilePropertiesArr[tileIdx] = tileProp;
                 tileIdx++;
             }
@@ -1632,7 +1858,7 @@ public class GameManager : MonoBehaviour
     {
         yield return new WaitForSeconds(wait);
         Transition.GetComponent<Animator>().SetBool(variable, managingAction);
-        Transition.transform.GetChild(1).GetChild(0).gameObject.SetActive(false);
+        Transition.transform.GetChild(0).GetChild(0).gameObject.SetActive(false);
     }
 
     IEnumerator CheckChunks()
@@ -1662,7 +1888,7 @@ public class GameManager : MonoBehaviour
 
         int playerChunk = (int)Mathf.Floor(player.transform.position.x / 16f);
 
-        for(int i = playerChunk - menuController.chunksOnEachSide; i < playerChunk + menuController.chunksOnEachSide; i++)
+        for (int i = playerChunk - menuController.chunksOnEachSide; i < playerChunk + menuController.chunksOnEachSide; i++)
         {
             int chunkToLoad = i;
             if (chunkToLoad < 0)
@@ -1673,18 +1899,8 @@ public class GameManager : MonoBehaviour
             {
                 chunkToLoad -= WorldWidth;
             }
-            
-            gameChunksToLoad.Add(chunkContainer.transform.GetChild(chunkToLoad).gameObject);
-        }
 
-        foreach (GameObject chunk in LoadedChunks)
-        {
-            if (!gameChunksToLoad.Contains(chunk) && chunk.activeInHierarchy)
-            {
-                ChunkController chunkC = chunk.GetComponent<ChunkController>();
-                if (chunkC.loaded)
-                    chunkC.DestroyChunk();
-            }
+            gameChunksToLoad.Add(chunkContainer.transform.GetChild(chunkToLoad).gameObject);
         }
 
         foreach (GameObject chunk in gameChunksToLoad)
@@ -1703,41 +1919,66 @@ public class GameManager : MonoBehaviour
         chunksLimits.GetChild(1).GetComponent<BoxCollider2D>().size = new Vector2(1, WorldHeight + 4);
 
         LoadedChunks = gameChunksLoaded;
-        UpdateChunksRelPos();
+        UpdateChunksRelPos(0);
     }
 
-    public void UpdateChunksRelPos()
+    public void UpdateChunksRelPos(int movement)
     {
         foreach (GameObject chunk in LoadedChunks)
         {
             chunk.GetComponent<ChunkController>().UpdateChunkPos();
         }
+        OnWorldRounding?.Invoke(movement);
     }
 
     public void ChangeBrush(int entryTile, GameObject tile)
     {
         if (building && !cancelPlacing)
         {
-            if (tileDefaultBrokeTool[entryTile] == "replace" && chosenBrush != tile.transform.parent.GetComponent<ChunkController>().TileGrid[System.Array.IndexOf(tile.transform.parent.GetComponent<ChunkController>().TileObject, tile)])
-            {
-                brush = chosenBrush;
-                StackBar.LoseItem();
-                if (tile.GetComponent<Timer>() != null) Destroy(tile.GetComponent<Timer>());
-                if (tile.GetComponent<BlockAnimationController>() != null) Destroy(tile.GetComponent<BlockAnimationController>());
-                tile.transform.parent.GetComponent<ChunkController>().TileGrid[System.Array.IndexOf(tile.transform.parent.GetComponent<ChunkController>().TileObject, tile)] = brush;
-                //tile.transform.parent.GetComponent<ChunkController>().TileGridRotation[System.Array.IndexOf(tile.transform.parent.GetComponent<ChunkController>().TileObject, tile)] = buildRotation;
-                tile.transform.parent.GetComponent<ChunkController>().UpdateChunk();
-                LightController.lightController.AddRenderQueue(player.transform.position);
+            int idx = System.Array.IndexOf(tile.transform.parent.GetComponent<ChunkController>().TileObject, tile);
 
-                if(isNetworkClient || isNetworkHost)
+            if (tileType[chosenBrush] != "background")
+            {
+                if (tileDefaultBrokeTool[entryTile] == "replace" && chosenBrush != tile.transform.parent.GetComponent<ChunkController>().TileGrid[idx])
                 {
-                    NetworkController.networkController.UpdateBlock(tile.transform.parent.GetSiblingIndex(), tile.transform.GetSiblingIndex(), brush);
+                    brush = chosenBrush;
+                    StackBar.LoseItem();
+                    if (tile.GetComponent<Timer>() != null) Destroy(tile.GetComponent<Timer>());
+
+
+                    if (tile.GetComponent<BlockAnimationController>() != null) Destroy(tile.GetComponent<BlockAnimationController>());
+                    tile.transform.parent.GetComponent<ChunkController>().TileGrid[idx] = brush;
+
+                    tile.transform.parent.GetComponent<ChunkController>().UpdateChunk();
+                    LightController.lightController.AddRenderQueue(player.transform.position);
+
+                    if (isNetworkClient || isNetworkHost)
+                    {
+                        NetworkController.networkController.UpdateBlock(tile.transform.parent.GetSiblingIndex(), idx, brush);
+                    }
                 }
             }
             else
             {
-                brush = entryTile;
+                if (tileDefaultBrokeTool[tile.transform.parent.GetComponent<ChunkController>().BackgroundTileGrid[idx]] == "replace" && chosenBrush != tile.transform.parent.GetComponent<ChunkController>().BackgroundTileGrid[idx])
+                {
+                    brush = chosenBrush;
+                    StackBar.LoseItem();
+
+                    tile.transform.parent.GetComponent<ChunkController>().BackgroundTileGrid[idx] = brush;
+
+                    tile.transform.parent.GetComponent<ChunkController>().UpdateChunk();
+
+                    if (isNetworkClient || isNetworkHost)
+                    {
+                        NetworkController.networkController.UpdateBackgroundBlock(tile.transform.parent.GetSiblingIndex(), idx, brush);
+                    }
+                }
             }
+        }
+        else
+        {
+            brush = entryTile;
         }
 
         if (usingTool && !cancelPlacing)
@@ -1835,7 +2076,7 @@ public class GameManager : MonoBehaviour
         lastTileBrush = tile;
     }
 
-    public int SwitchTroughBlockBroke(int entryTile, Vector2Int tileEntryPos)
+    public int SwitchTroughBlockBroke(int entryTile, Vector2Int tileEntryPos, bool extraDrop = true)
     {
         int returnItem = entryTile;
         Vector2 tilePos = tileEntryPos;
@@ -1848,28 +2089,33 @@ public class GameManager : MonoBehaviour
                 break;
             case 2:
                 returnItem = 7;
-                if (Random.Range(0, 5) == 0)
+                if (Random.Range(0, 5) == 0 && extraDrop)
                     ManagingFunctions.DropItem(3, tilePos);
                 break;
             case 8:
                 returnItem = 31;
+                if(extraDrop)
                 ManagingFunctions.DropItem(6, tilePos);
                 break;
             case 9:
                 returnItem = 33;
-                ManagingFunctions.DropItem(6, tilePos);
+                if (extraDrop)
+                    ManagingFunctions.DropItem(6, tilePos);
                 break;
             case 10:
                 returnItem = 32;
-                ManagingFunctions.DropItem(6, tilePos);
+                if (extraDrop)
+                    ManagingFunctions.DropItem(6, tilePos);
                 break;
             case 11:
                 returnItem = 30;
-                ManagingFunctions.DropItem(6, tilePos);
+                if (extraDrop)
+                    ManagingFunctions.DropItem(6, tilePos);
                 break;
             case 12:
                 returnItem = 34;
-                ManagingFunctions.DropItem(6, tilePos);
+                if (extraDrop)
+                    ManagingFunctions.DropItem(6, tilePos);
                 break;
             case 55:
                 if (Random.Range(0, 99) == 0) returnItem = 51;
@@ -1885,8 +2131,7 @@ public class GameManager : MonoBehaviour
                 returnItem = 0;
                 break;
             case 98:
-
-                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 15)
+                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 15 && extraDrop)
                 {
                     SetTileAt((tileEntryPos.x + 1) * WorldHeight + tileEntryPos.y, 0);
                     returnItem = 100;
@@ -1897,7 +2142,7 @@ public class GameManager : MonoBehaviour
                 }
                 break;
             case 99:
-                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 0)
+                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 0 && extraDrop)
                 {
                     SetTileAt((tileEntryPos.x - 1) * WorldHeight + tileEntryPos.y, 0);
                     returnItem = 100;
@@ -1913,23 +2158,61 @@ public class GameManager : MonoBehaviour
             case 106:
                 returnItem = 0;
                 break;
+            case 114:
+                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 15 && extraDrop)
+                {
+                    SetTileAt((tileEntryPos.x + 1) * WorldHeight + tileEntryPos.y, 0);
+                    returnItem = 116;
+                }
+                else
+                {
+                    returnItem = 0;
+                }
+                break;
+            case 115:
+                if (ManagingFunctions.EntireDivision(tileEntryPos.x, 16).rest == 0 && extraDrop)
+                {
+                    SetTileAt((tileEntryPos.x - 1) * WorldHeight + tileEntryPos.y, 0);
+                    returnItem = 116;
+                }
+                else
+                {
+                    returnItem = 0;
+                }
+                break;
         }
 
 
         return returnItem;
     }
 
-    public int SearchForClearSpawn(int x)
+    public int SearchForClearSpawn(ref int x)
     {
-        for (int i = WorldHeight - 2; i > 0; i--)
+        while (x < WorldWidth * 16) // Asegúrate de que no salga del límite del mundo
         {
-            if (allMapGrid[(x * WorldHeight) + i] != 0 && allMapGrid[(x * WorldHeight) + i + 1] == 0)
+            for (int i = WorldHeight - 2; i > 0; i--)
             {
-                return i;
+                int currentIndex = (x * WorldHeight) + i;
+                if (allMapGrid[currentIndex] == 62)
+                {
+                    x += 1; // Incrementa x y continúa con la siguiente columna
+                    break;
+                }
+                else if (allMapGrid[currentIndex] != 0 && allMapGrid[currentIndex + 1] == 0)
+                {
+                    return i;
+                }
             }
         }
 
-        return WorldHeight + 1;
+        return WorldHeight + 1; // Si no se encontró una posición válida, retornamos un valor por defecto
+    }
+
+    public Vector2 RespawnPosition()
+    {
+        int x = Random.Range((int)(WorldWidth * 16 * 0.45f), (int)(WorldWidth * 16 * 0.55f));
+        int y = SearchForClearSpawn(ref x);
+        return new Vector2(x, y + 2);
     }
 
     public int GetTileAt(int idx)
@@ -1977,6 +2260,12 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public bool ChunkActive(int x)
+    {
+        ChunkController c = chunkContainer.transform.GetChild((int)ManagingFunctions.ClampX(x) / 16).GetComponent<ChunkController>();
+        return c.loaded && !c.loading;
+    }
+
     public void Consume(int tile)
     {
         switch (tile)
@@ -1987,12 +2276,16 @@ public class GameManager : MonoBehaviour
                     ENTITY_TheDestroyer.StaticSpawn(null, new Vector2(player.transform.position.x + Random.Range(-10f, 10f), 0));
                     soundController.PlaySfxSound(SoundName.select);
                 }
-                else StackBar.AddItem(78);
+                else StackBar.AddItemInv(78);
+                break;
+            case 122:
+                player.entityScript.AddState(EntityState.FireResistance, 90f);
+                soundController.PlaySfxSound(SoundName.select);
                 break;
         }
     }
 
-    public ChunkController SetTileAt(int idx, int tile, bool updateChunk = true)
+    public ChunkController SetTileAt(int idx, int tile, bool updateChunk = true, bool markUpdateChunk = false)
     {
         try
         {
@@ -2007,6 +2300,7 @@ public class GameManager : MonoBehaviour
             ChunkController chunk = chunkContainer.transform.GetChild((int)ManagingFunctions.EntireDivision(idx, WorldHeight * 16).cocient).GetComponent<ChunkController>();
             chunk.TileGrid[idx - chunk.tilesToChunk] = tile;
             if (updateChunk) chunk.UpdateChunk();
+            if (markUpdateChunk) chunk.updateChunk = true;
             if (isNetworkClient || isNetworkHost) NetworkController.networkController.UpdateBlock(chunk.transform.GetSiblingIndex(), idx - chunk.tilesToChunk, tile);
             return chunk;
         }
@@ -2018,8 +2312,6 @@ public class GameManager : MonoBehaviour
 
     public void TileExplosionAt(int x, int y, int radius, int strength, bool dropBlocks = true)
     {
-        List<ChunkController> chunks2Update = new List<ChunkController>();
-
         for (int dx = x - radius; dx < x + radius + 1; dx++)
         {
             for (int dy = y - radius; dy < y + radius + 1; dy++)
@@ -2028,20 +2320,14 @@ public class GameManager : MonoBehaviour
 
                 if (Vector2.Distance(new Vector2(dx, dy), new Vector2(x, y)) < radius && ToolEfficency[getTile] < strength)
                 {
-                    ChunkController c = SetTileAt(dx * WorldHeight + dy, 0, false);
+                    ChunkController c = SetTileAt(dx * WorldHeight + dy, 0, false, true);
 
                     if (Random.Range(0, 2) == 0 && dropBlocks)
                     {
                         ManagingFunctions.DropItem(SwitchTroughBlockBroke(getTile, new Vector2Int(dx, dy)), new Vector2(dx, dy));
                     }
-
-                    if (!chunks2Update.Contains(c))
-                        chunks2Update.Add(c);
                 }
             }
         }
-
-        foreach (ChunkController chunk in chunks2Update)
-            chunk.UpdateChunk();
     }
 }

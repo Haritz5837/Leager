@@ -21,7 +21,7 @@ SpriteAtlas:
       crunchedCompression: 0
       sRGB: 1
     platformSettings:
-    - serializedVersion: 3
+    - serializedVersion: 2
       m_BuildTarget: DefaultTexturePlatform
       m_MaxTextureSize: 8192
       m_ResizeAlgorithm: 0
@@ -32,7 +32,6 @@ SpriteAtlas:
       m_AllowsAlphaSplitting: 0
       m_Overridden: 0
       m_AndroidETC2FallbackOverride: 0
-      m_ForceMaximumCompressionQuality_BC6H_BC7: 1
     packingSettings:
       serializedVersion: 2
       padding: 8
@@ -47,11 +46,13 @@ SpriteAtlas:
     - {fileID: 2800000, guid: 980946a09a266754dad1a4b559b911ca, type: 3}
     - {fileID: 2800000, guid: 15a24bcb019b71e4ba96310f0943c646, type: 3}
     - {fileID: 2800000, guid: 489298c9960f7d74fa71a38a3577222c, type: 3}
+    totalSpriteSurfaceArea: 359316
     bindAsDefault: 1
   m_MasterAtlas: {fileID: 0}
   m_PackedSprites:
   - {fileID: 21300000, guid: 980946a09a266754dad1a4b559b911ca, type: 3}
   - {fileID: 21300000, guid: 69fdc12113c79c14aab1bbca4a069ddf, type: 3}
+  - {fileID: 21300000, guid: f5c54ca12781f7c48839101ae2b167ec, type: 3}
   - {fileID: 21300006, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
   - {fileID: 21300004, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
   - {fileID: 21300002, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
@@ -59,6 +60,7 @@ SpriteAtlas:
   - {fileID: 21300012, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
   - {fileID: 21300010, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
   - {fileID: 21300008, guid: 28a24832f4be2e9409115d4ae5c7dd4c, type: 3}
+  - {fileID: 21300000, guid: 2922ce82c08100046a3cbbea00b861db, type: 3}
   - {fileID: 21300000, guid: 4c2127f2c4855ee4bb467a53ad27c55e, type: 3}
   - {fileID: 21300000, guid: b8919b03f9316ff43a9135077b91f2b7, type: 3}
   - {fileID: 21300000, guid: d275a0f34b5ccb842ad86c12d27b4b59, type: 3}
@@ -76,27 +78,37 @@ SpriteAtlas:
   - {fileID: 21300022, guid: 9ac27336cf593f9449fd2c40fbff842b, type: 3}
   - {fileID: 21300008, guid: 9ac27336cf593f9449fd2c40fbff842b, type: 3}
   - {fileID: 21300016, guid: 9ac27336cf593f9449fd2c40fbff842b, type: 3}
+  - {fileID: 21300030, guid: 9ac27336cf593f9449fd2c40fbff842b, type: 3}
+  - {fileID: 21300028, guid: 9ac27336cf593f9449fd2c40fbff842b, type: 3}
   - {fileID: 21300000, guid: 285a2bd61e0d62047ad61875e4a1a7ea, type: 3}
   - {fileID: 21300000, guid: 43a1adf6ec02ae4419cc424e3006f785, type: 3}
   - {fileID: 21300000, guid: b351db07d06dc3a4a9f6ce3cc323f7c5, type: 3}
+  - {fileID: 21300002, guid: dd9d594705d03934785f2d9b21edff1a, type: 3}
+  - {fileID: 21300000, guid: dd9d594705d03934785f2d9b21edff1a, type: 3}
+  - {fileID: 21300006, guid: dd9d594705d03934785f2d9b21edff1a, type: 3}
+  - {fileID: 21300004, guid: dd9d594705d03934785f2d9b21edff1a, type: 3}
   - {fileID: 21300004, guid: 40e6af3981041ab4f87e232451011b33, type: 3}
   - {fileID: 21300000, guid: 40e6af3981041ab4f87e232451011b33, type: 3}
   - {fileID: 21300002, guid: 40e6af3981041ab4f87e232451011b33, type: 3}
   - {fileID: 21300000, guid: 11ae9db968e5442428dec7cee0c07e9e, type: 3}
   - {fileID: 21300000, guid: 489298c9960f7d74fa71a38a3577222c, type: 3}
+  - {fileID: 21300000, guid: 903432f948206584ea9781985d9727b1, type: 3}
   - {fileID: 21300000, guid: bea6dc7a693287542a381f7467b76635, type: 3}
   - {fileID: 21300000, guid: a2cb009a1b6b7ff428abb02d31034cb1, type: 3}
   - {fileID: 21300000, guid: 257a920b47232f745becd41aed80447b, type: 3}
   - {fileID: 21300000, guid: 2a7f9e8bc28061549a9b81564ea18240, type: 3}
+  - {fileID: 21300000, guid: e94931ac872103442aa6cab3d34153bc, type: 3}
   - {fileID: 21300000, guid: 4512e2acc259f4e4eb52d3a16efe98f2, type: 3}
   - {fileID: 21300000, guid: 9a03a0cc5d40e7f43a2ae9567e96c05a, type: 3}
   - {fileID: 21300000, guid: 2eedcbfc196849a4f9f2c323e24ae59a, type: 3}
   - {fileID: 21300000, guid: 695750ad90169744d93ba40741aec98e, type: 3}
   - {fileID: 21300000, guid: 57aa2efdf1fc61f4faf047058ff3338f, type: 3}
   - {fileID: 21300000, guid: 9e289b6e36bddb14db0517b4d1efd037, type: 3}
+  - {fileID: 21300000, guid: 3ef1e3ceb357e7140bb0a2ffce593225, type: 3}
   m_PackedSpriteNamesToIndex:
   - DiscordiaLogo_0
   - VariousImages_0
+  - Sun
   - ActionIcon_3
   - ActionIcon_2
   - ActionIcon_1
@@ -104,6 +116,7 @@ SpriteAtlas:
   - ActionIcon_6
   - ActionIcon_5
   - ActionIcon_4
+  - SquaryPanel2
   - Heart
   - ButtonPanelBlack
   - AHHH Screen
@@ -121,23 +134,32 @@ SpriteAtlas:
   - MobileSheet_InventoryCrossEnter
   - MobileSheet_CrossDown
   - MobileSheet_InventoryScrollLeft
+  - MobileSheet_1
+  - MobileSheet_0
   - LodingLine
   - ButtonPanelMask
   - Default Panel
+  - HealthBar_1
+  - HealthBar_0
+  - HealthBar_3
+  - HealthBar_2
   - MinimapAssets_2
   - MinimapAssets_0
   - MinimapAssets_1
   - Death Icon
   - Title
+  - Stack
   - OptionsLogos_0
   - NavigationArrow
   - DirtIcon
   - SelectedTile_0
+  - BlueHeart
   - TestSquare
   - ButtonPanelWhite
   - SquarePanel
   - Stackbar
   - NewBlock
   - ButtonPanelSidesLR
+  - SquaryPanel
   m_Tag: UiStuff
   m_IsVariant: 0

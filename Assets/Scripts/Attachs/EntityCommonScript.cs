@@ -62,6 +62,7 @@ public class EntityCommonScript : MonoBehaviour
         if (raycastHeight)
         {
             Debug.DrawLine(transform.position, transform.position + Vector3.down * height, Color.blue, 1f);
+            Debug.DrawLine(transform.position, transform.position + Vector3.right * width, Color.blue, 1f);
         }
     }
 
@@ -114,21 +115,19 @@ public class EntityCommonScript : MonoBehaviour
 
         if (transform.position.x < -1)
         {
-            transform.position = transform.position + new Vector3(GameManager.gameManagerReference.WorldWidth * 16, 0);
             if (EntityType == "lecter")
             {
-                LightController.lightController.AddRenderQueue(transform.position);
-                GameManager.gameManagerReference.UpdateChunksRelPos();
+                transform.position = transform.position + new Vector3(GameManager.gameManagerReference.WorldWidth * 16, 0);
+                GameManager.gameManagerReference.UpdateChunksRelPos(1);
             }
         }
 
         if (transform.position.x > GameManager.gameManagerReference.WorldWidth * 16)
         {
-            transform.position = transform.position - new Vector3(GameManager.gameManagerReference.WorldWidth * 16, 0);
             if (EntityType == "lecter")
             {
-                LightController.lightController.AddRenderQueue(transform.position);
-                GameManager.gameManagerReference.UpdateChunksRelPos();
+                transform.position = transform.position - new Vector3(GameManager.gameManagerReference.WorldWidth * 16, 0);
+                GameManager.gameManagerReference.UpdateChunksRelPos(-1);
             }
         }
     }
@@ -161,6 +160,11 @@ public class EntityCommonScript : MonoBehaviour
                 }
             }
 
+        if (affectedBySolids)
+        {
+            SlopePhysics(collider);
+        }
+
         if (ladderVelocity != 0)
             if (collider.gameObject.layer == 20)
             {
@@ -178,37 +182,53 @@ public class EntityCommonScript : MonoBehaviour
             }
     }
 
-    //private void SlopePhysics(Collider2D collider)
-    //{
-    //    if (collider.gameObject.layer == 17)
-    //    {
-    //        float constant1 = collider.transform.position.y + height;
-    //        float extremelyLargeNumber = Mathf.Clamp(constant1 + width + (transform.position.x - collider.transform.position.x), constant1 - height, constant1 + height);
+    private void SlopePhysics(Collider2D collider)
+    {
+        if (collider.gameObject.layer == 17)
+        {
+            float head = transform.position.y + height;
+            float relativex = transform.position.x + width - collider.transform.position.x + 0.6f;
+            float ladderPoint = Mathf.Clamp(relativex, -0.1f, 1) + collider.transform.position.y - 0.5f;
+            float feet = transform.position.y - height;
 
-    //        if(transform.position.y > extremelyLargeNumber + Mathf.Abs(rb2D.velocity.y))
-    //        {
+            if (feet > ladderPoint + Mathf.Clamp(rb2D.velocity.y, -99f, 0f) * 2 - 0.05f)
+            {
+                Debug.Log(relativex + " - " + ladderPoint);
+                if (feet < ladderPoint)
+                {
+                    transform.position = new Vector2(transform.position.x, ladderPoint + height);
+                    rb2D.velocity = new Vector2(rb2D.velocity.x * 0.9f, 0f);
+                }
+            }
+            else
+            {
+                if(head < ladderPoint)
+                {
+                    transform.position = new Vector2(transform.position.x, collider.transform.position.y - 0.5f - height);
+                    rb2D.velocity = Vector2.zero;
+                }
+                else if(transform.position.x < collider.transform.position.x - 0.5f)
+                {
+                    transform.position = new Vector2(collider.transform.position.x - 0.5f - width, transform.position.y);
+                    rb2D.velocity = new Vector2(0f, rb2D.velocity.y);
+                }
+                else
+                {
+                    transform.position = new Vector2(collider.transform.position.x + 0.5f + width, transform.position.y);
+                    rb2D.velocity = new Vector2(0f, rb2D.velocity.y);
+                }
+            }
 
-    //        }
-    //        else if (transform.position.y > extremelyLargeNumber + Mathf.Clamp(rb2D.velocity.y, -10f, -0.1f) - 0.1f)
-    //        {
-    //            transform.position = new Vector2(transform.position.x, extremelyLargeNumber);
-    //            rb2D.velocity = Vector2.right * rb2D.velocity.x;
-
-    //        }
-    //        else
-    //        {
-
-    //        }
 
 
-
-    //    }
-    //}
+        }
+        
+    }
 }
 
 
 
 public enum EntityState : int
 {
-    OnFire, Paralisis, Drowning, Swimming, Burning
+    OnFire, Paralisis, Drowning, Swimming, Burning, FireResistance,
 }

@@ -12,6 +12,9 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
     EntityCommonScript entityScript;
     GameManager manager;
 
+    [SerializeField] AudioClip randomSpeak;
+    public float speakTime = 15f;
+
     public PlayerController followingPlayer;
     float HpMax = 10f;
     float HP = 10f;
@@ -45,6 +48,8 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
         }
     }
 
+    public override EntityCommonScript EntityCommonScript => entityScript;
+
     public override string[] GenerateArgs()
     {
         return null;
@@ -58,6 +63,7 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
         transform.SetParent(GameManager.gameManagerReference.entitiesContainer.transform);
         entityScript = GetComponent<EntityCommonScript>();
         Active = true;
+
         return this;
     }
     public static EntityBase StaticSpawn(string[] args, Vector2 spawnPos)
@@ -71,11 +77,12 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
         if (CheckGrounded() && !animator.GetBool("damaged")) rb2D.velocity = new Vector2(rb2D.velocity.x, 10f);
         animator.SetBool("damaged", true);
         Invoke("UnDamage", 0.6f);
+        HealthBarManager.self.UpdateHealthBar(transform, HP, HpMax, Vector2.up);
     }
 
     public override void Despawn()
     {
-        if (animator.GetBool("dead"))
+        if (animator.GetBool("dead") && !entityScript.entityStates.Contains(EntityState.Burning))
         {
             for (int i = 0; i < 20; i++)
             {
@@ -117,6 +124,18 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
             if (!followingPlayer.alive) followingPlayer = null;
         }
 
+        if(!dead && !damaged)
+        {
+            if(speakTime <= 0f)
+            {
+                speakTime = Random.Range(5, 45);
+                manager.soundController.PlaySfxSound(randomSpeak, ManagingFunctions.VolumeDistance(Vector2.Distance(manager.player.transform.position, transform.position), 6));
+            }
+            else
+            {
+                speakTime -= Time.deltaTime;
+            }
+        }
 
         if (lookingToSide)
         {
@@ -289,7 +308,7 @@ public class ENTITY_NanoBotT1 : EntityBase, IDamager
         {
             RaycastHit2D rayHit = Physics2D.Raycast(startpos, raycastDir, raycastDist, blockMask);
             if (rayHit)
-                colliding = rayHit.transform.GetComponent<PlatformEffector2D>() == null;
+                colliding = rayHit.collider.transform.GetComponent<PlatformEffector2D>() == null;
             else colliding = false;
         }
         else

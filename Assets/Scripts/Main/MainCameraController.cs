@@ -8,9 +8,13 @@ public class MainCameraController : MonoBehaviour {
     public string Focus = "mainMenu";
     public float focusX = 0f;
     public float focusY = 0f;
+    public Color skyboxColor;
+    public AnimationCurve dayNightCycle;
     [SerializeField] GameObject canvas;
     [SerializeField] GameObject backgroundTrees;
     [SerializeField] GameObject backgroundMountains;
+    [SerializeField] Transform stars;
+    [SerializeField] SpriteRenderer[] landscapes;
 
     void Start () {
 		
@@ -19,6 +23,8 @@ public class MainCameraController : MonoBehaviour {
 
     void Update()
     {
+        SetSkybox();
+
         if(Focus == "selectWorldOptionsExit")
         {
             if (WorldPanelController.worldPanelController.listOfLoadedWorlds.Count < 1)
@@ -93,5 +99,24 @@ public class MainCameraController : MonoBehaviour {
     {
         focusX = x;
         focusY = y;
+    }
+
+    private void SetSkybox()
+    {
+        float dayLuminosity = 0;
+        float value = 1;
+        float time = Time.time;
+
+        value = dayNightCycle.Evaluate(time % 120 / 120);
+        stars.eulerAngles = Vector3.forward * ((time % 120 / 120) * -180 - 45f);
+
+        dayLuminosity = Mathf.Clamp(value, 0.1f, 1);
+
+        foreach(SpriteRenderer renderer in landscapes)
+        {
+            renderer.color = new Color(dayLuminosity * 3, dayLuminosity * 3, dayLuminosity * 3);
+        }
+
+        GetComponent<Camera>().backgroundColor = skyboxColor * dayLuminosity;
     }
 }

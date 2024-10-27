@@ -10,7 +10,7 @@ public class PushPlay : MonoBehaviour
 {
     public static PushPlay main;
     public AudioMixer gameAudio;
-    [SerializeField] Slider loadingSlider;
+    [SerializeField] RectTransform loadingSlider;
     [SerializeField] Slider bgmSlider;
     //[SerializeField] GameObject loadingTexts;
     [SerializeField] public Button multiplayerButton;
@@ -51,11 +51,7 @@ public class PushPlay : MonoBehaviour
 
         GameObject.Find("Transition").GetComponent<Animator>().SetBool("Open", true);
         GameObject.Find("SaveObject").GetComponent<ComponetSaver>().SaveData(new string[] { "0", "0" }, "newWorldSize");
-    }
-
-    private void Update()
-    {
-
+        GameObject.Find("SaveObject").GetComponent<ComponetSaver>().SaveData(new string[] { "0" }, "newWorldDifficulty");
     }
 
     public void OpenSocialMedia(string link)
@@ -69,9 +65,7 @@ public class PushPlay : MonoBehaviour
         string worldName = WorldPanelController.worldPanelController.newWorldName.GetComponent<InputField>().text;
         if (worldName == "miler sucks")
         {
-            if (Application.platform != RuntimePlatform.Android)
-                multiplayerButton.interactable = true;
-            Camera.main.GetComponent<MainCameraController>().Focus = "mainMenu";
+            Application.Quit();
         }
         else
             StartCoroutine(LoadNewWorld(1f));
@@ -157,6 +151,8 @@ public class PushPlay : MonoBehaviour
         worldPanel.newWorldName.GetComponent<InputField>().interactable = false;
         worldPanel.newWorldSeed.GetComponent<InputField>().interactable = false;
         worldPanel.newWorldButton.GetComponent<Button>().interactable = false;
+
+        SetWorldSize(120);
 
         GameObject.Find("Transition").GetComponent<Animator>().SetBool("Open", false);
         yield return new WaitForSeconds(secs);
@@ -245,9 +241,16 @@ public class PushPlay : MonoBehaviour
         GameObject.Find("SaveObject").GetComponent<ComponetSaver>().SaveData(ManagingFunctions.ConvertIntToStringArray(wp), "newWorldSize");
     }
 
-    public void Tutorial(string language)
+    public void SetGameDifficulty(int difficulty)
     {
-        
+        GameObject.Find("SaveObject").GetComponent<ComponetSaver>().DeleteData("newWorldDifficulty");
+        GameObject.Find("SaveObject").GetComponent<ComponetSaver>().SaveData(new string[] { difficulty + "" }, "newWorldDifficulty");
+        Debug.Log("Difficulty selected: " + (Difficulty)difficulty);
+    }
+
+    public void Tutorial()
+    {
+
     }
 
     public void OpenSaveDataFolder()
@@ -268,13 +271,24 @@ public class PushPlay : MonoBehaviour
         loadingSlider.gameObject.SetActive(true);
         //loadingTexts.gameObject.SetActive(true);
 
+        yield return new WaitForSeconds(1.5f);
+
         AsyncOperation operation = SceneManager.LoadSceneAsync("Game");
         
 
         while (!operation.isDone)
         {
-            loadingSlider.value = Mathf.Clamp01(operation.progress / 0.9f);
-            loadingSlider.transform.GetChild(2).GetComponent<Text>().text = (int)(operation.progress * 100f) + "%";
+            loadingSlider.GetChild(1).GetChild(0).GetComponent<RectTransform>().localScale = new Vector3(Mathf.Clamp01(operation.progress / 0.9f), 1, 1);
+            loadingSlider.transform.GetChild(2).GetComponent<Text>().text = Mathf.Round(operation.progress * 100 + 10) + "%";
+
+            if (operation.progress >= 0.9f)
+            {
+                loadingSlider.transform.GetChild(3).GetComponent<Text>().text = "Generating Terrain";
+            }
+            else
+            {
+                loadingSlider.transform.GetChild(3).GetComponent<Text>().text = "Loading World";
+            }
             yield return  new WaitForEndOfFrame();
         }
     }

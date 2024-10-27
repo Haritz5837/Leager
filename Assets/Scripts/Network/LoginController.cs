@@ -3,25 +3,57 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Networking;
+using PlayerIOClient;
+using System.Text;
+using System.Security.Cryptography;
 
 public class LoginController : MonoBehaviour {
 
     bool gettingData = false;
     public bool loggedIn = false;
 
-    [SerializeField] InputField loginUserField;
+    [SerializeField] InputField loginEmailField;
     [SerializeField] InputField loginPassField;
     [SerializeField] InputField signinUserField;
     [SerializeField] InputField signinPassField;
-    [SerializeField] InputField signinNickField;
+    [SerializeField] InputField signinEmailField;
     [SerializeField] GameObject loginButton;
     [SerializeField] Button logOffButton;
     [SerializeField] GameObject loggedUser;
     [SerializeField] MainCameraController cameraController;
 
+    [SerializeField] string serverID;
+    [SerializeField] string message;
+
     void Start()
     {
-        RefreshLogin();
+        //RefreshLogin();
+    }
+
+    public void CreateUser()
+    {
+        string username = signinUserField.text;
+        string password = signinPassField.text;
+        string email = signinEmailField.text;
+
+        string data = CreateHead("default", message);
+        PlayerIOClient.Client client = PlayerIO.Authenticate(serverID, "userreq", ManagingFunctions.CreateArgs(new string[] { "userId", "auth" }, new string[] { "default", data }), null);
+
+        if(client.BigDB.Load("Users", username) == null)
+        {
+            DatabaseObject newUser = new DatabaseObject();
+            newUser.Set("Username", username);
+            newUser.Set("Email", email);
+            newUser.Set("Password", password);
+
+            client.BigDB.CreateObject("Users", username, newUser);
+            //true stuff
+        }
+        else
+        {
+            //false stuff
+        }
+       
     }
 
     void Update()
@@ -30,41 +62,34 @@ public class LoginController : MonoBehaviour {
         {
             loggedUser.SetActive(cameraController.Focus == "mainMenu");
         }
+        else
+        {
+            loginButton.SetActive(cameraController.Focus == "mainMenu");
+        }
     }
 
     void RefreshLogin()
     {
-        //loggedIn = DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/logginSettings.lgrsd");
+        loggedIn = DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/logginSettings.lgrsd");
 
-        //PushPlay.main.multiplayerButton.interactable = false;
+        PushPlay.main.multiplayerButton.interactable = false;
 
-        //loggedUser.SetActive(loggedIn);
-        //loginButton.SetActive(!loggedIn);
-        //logOffButton.interactable = loggedIn;
+        loggedUser.SetActive(loggedIn);
+        loginButton.SetActive(!loggedIn);
+        logOffButton.interactable = loggedIn;
 
-        //if (loggedIn)
-        //{
-        //    string[] logginSession = DataSaver.LoadStats(Application.persistentDataPath + @"/logginSettings.lgrsd").SavedData;
-
-        //    List<IMultipartFormSection> formData = new List<IMultipartFormSection>
-        //    {
-        //        new MultipartFormDataSection("user", logginSession[0]),
-        //        new MultipartFormDataSection("pass", logginSession[1])
-        //    };
-
-        //    StartCoroutine(GetDataFromURL("http://localhost:5559/game/database/login.php", "userLogin", formData));
-        //}
-    }
-
-    public void Login()
-    {
-        List<IMultipartFormSection> formData = new List<IMultipartFormSection>
+        if (loggedIn)
         {
-            new MultipartFormDataSection("user", loginUserField.text),
-            new MultipartFormDataSection("pass", loginPassField.text)
-        };
+            string[] logginSession = DataSaver.LoadStats(Application.persistentDataPath + @"/logginSettings.lgrsd").SavedData;
 
-        StartCoroutine(GetDataFromURL("http://localhost:5559/game/database/login.php", "login", formData));
+            List<IMultipartFormSection> formData = new List<IMultipartFormSection>
+            {
+                new MultipartFormDataSection("user", logginSession[0]),
+                new MultipartFormDataSection("pass", logginSession[1])
+            };
+
+           
+        }
     }
 
     public void LogOff()
@@ -74,89 +99,15 @@ public class LoginController : MonoBehaviour {
         cameraController.ChangeFocus("mainMenu");
     }
 
-    public void SignIn()
+    public static string CreateHead(string userId, string sharedSecret)
     {
-        List<IMultipartFormSection> formData = new List<IMultipartFormSection>
-        {
-            new MultipartFormDataSection("user", signinUserField.text),
-            new MultipartFormDataSection("pass", signinPassField.text)
-        };
-
-        if (signinNickField.text == "")
-            formData.Add(new MultipartFormDataSection("nick", "null"));
-        else
-            formData.Add(new MultipartFormDataSection("nick", signinNickField.text));
-
-        StartCoroutine(GetDataFromURL("http://localhost:5559/game/database/signin.php", "signin", formData));
+        int unixTime = (int)(System.DateTime.UtcNow - new System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc)).TotalSeconds;
+        var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sharedSecret)).ComputeHash(Encoding.UTF8.GetBytes(unixTime + ":" + userId));
+        return unixTime + ":" + ToHexString(hmac);
     }
 
-    void URLCallback(string data, string requestType)
+    public static string ToHexString(byte[] bytes)
     {
-        Debug.Log(data + ", [" + requestType + "]");
-
-        if(requestType == "debug")
-        {
-            
-        }
-
-        if(requestType == "signin")
-        {
-            if (data != "2" && data != "-1")
-            {
-                DataSaver.SaveStats(new string[] { signinUserField.text, signinPassField.text, data }, Application.persistentDataPath + @"/logginSettings.lgrsd");
-                RefreshLogin();
-                PushPlay.main.multiplayerButton.interactable = true;
-                cameraController.ChangeFocus("mainMenu");
-            }
-        }
-
-        if (requestType == "login")
-        {
-            if (data != "1" && data != "-1")
-            {
-                DataSaver.SaveStats(new string[] { loginUserField.text, loginPassField.text, data }, Application.persistentDataPath + @"/logginSettings.lgrsd");
-                RefreshLogin();
-                PushPlay.main.multiplayerButton.interactable = true;
-                cameraController.ChangeFocus("mainMenu");
-            }
-        }
-
-        if (requestType == "userLogin")
-        {
-            if (data != "1" && data != "-1")
-            {
-                string[] logginSession = DataSaver.LoadStats(Application.persistentDataPath + @"/logginSettings.lgrsd").SavedData;
-
-                loggedUser.transform.GetChild(0).GetComponent<Text>().text = logginSession[0];
-                loggedUser.GetComponent<RectTransform>().sizeDelta = new Vector2(logginSession[0].Length * 14 + 6, 30);
-                loggedUser.transform.GetChild(0).GetComponent<RectTransform>().sizeDelta = new Vector2(logginSession[0].Length * 14, 30);
-                PushPlay.main.multiplayerButton.interactable = true;
-            }
-            else
-            {
-                DataSaver.DeleteFile(Application.persistentDataPath + @"/logginSettings.lgrsd");
-                RefreshLogin();
-            }
-        }
-    }
-
-    IEnumerator GetDataFromURL(string url, string requestType, List<IMultipartFormSection> post)
-    {
-        gettingData = true;
-        string returnData = "";
-
-        UnityWebRequest www = UnityWebRequest.Post(url, post);
-        yield return www.Send();
-
-        if (www.isNetworkError)
-        {
-            Debug.LogWarning(www.error);
-        }
-        else
-        {
-            returnData = www.downloadHandler.text;
-            URLCallback(returnData, requestType);
-        }
-        gettingData = false;
+        return System.BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
     }
 }

@@ -36,16 +36,20 @@ public class InventoryController : MonoBehaviour
 
         for (int i = 1; i < (rectTransform.GetChild(0).childCount * 9) + 1; i++)
         {
+            int currentItem = InventoryBarGrid[i - 1];
+
             GameObject selectedStack = gameObject;
             RectTransform childTransform = rectTransform;
 
-            selectedStack = rectTransform.GetChild(0).GetChild((int)ManagingFunctions.EntireDivision(i - 1, 9).cocient).GetChild((int)ManagingFunctions.EntireDivision(i - 1, 9).rest).gameObject;
+
+            DivisionResult result = ManagingFunctions.EntireDivision(i - 1, 9);
+            selectedStack = rectTransform.GetChild(0).GetChild(result.cocient).GetChild(result.rest).gameObject;
             childTransform = selectedStack.GetComponent<RectTransform>();
             
 
             selectedStack.GetComponent<Image>().sprite = gameManager.tiles[InventoryBarGrid[i - 1]];
 
-            if (!(gameManager.tileType[System.Array.IndexOf(gameManager.tiles, childTransform.GetComponent<Image>().sprite)] == "tool" || gameManager.tileType[System.Array.IndexOf(gameManager.tiles, childTransform.GetComponent<Image>().sprite)] == "arm" || gameManager.tileType[System.Array.IndexOf(gameManager.tiles, childTransform.GetComponent<Image>().sprite)] == "equip" || gameManager.tileType[System.Array.IndexOf(gameManager.tiles, childTransform.GetComponent<Image>().sprite)] == "core") && !(gameManager.tileType[System.Array.IndexOf(gameManager.tiles, childTransform.GetComponent<Image>().sprite)] == ""))
+            if (gameManager.stackLimit[InventoryBarGrid[i - 1]] > 1)
             {
                 childTransform.GetChild(0).gameObject.SetActive(true);
                 childTransform.GetChild(0).GetComponent<Text>().text = InventoryItemAmount[i - 1] + "";
@@ -121,16 +125,22 @@ public static class InventoryBar
     public static bool AddItem(int item)
     {
         bool typeAlreadyExists = false;
-        {//check if type already exists
+        int existingIdx = -1;
+        {
             for (int i = 0; i < 36; i++)
             {
-                if (inventoryBarController.InventoryBarGrid[i] == item) typeAlreadyExists = true;
+                if (inventoryBarController.InventoryBarGrid[i] == item && inventoryBarController.InventoryItemAmount[i] < GameManager.gameManagerReference.stackLimit[inventoryBarController.InventoryBarGrid[i]])
+                {
+                    typeAlreadyExists = true;
+                    existingIdx = i;
+                }
+
             }
         }
 
-        if (typeAlreadyExists && inventoryBarController.InventoryItemAmount[System.Array.IndexOf(inventoryBarController.InventoryBarGrid, item)] < 99)
+        if (typeAlreadyExists)
         {
-            inventoryBarController.InventoryItemAmount[System.Array.IndexOf(inventoryBarController.InventoryBarGrid, item)] += 1;
+            inventoryBarController.InventoryItemAmount[existingIdx] += 1;
             inventoryBarController.UpdateStacks();
             return true;
         }

@@ -4,16 +4,23 @@ using UnityEngine;
 
 public class EntitiesManager : MonoBehaviour {
 
-    // Use this for initialization
-    void Start () {
-		
-	}
-	
-	// Update is called once per frame
-	void Update () {
-		
-	}
+    public static EntitiesManager self;
+    public int currentEntities = 0;
+    public int entityLimit = 0;
+    public bool canNaturalSpawn = true;
 
+    private void Awake()
+    {
+        currentEntities = 0;
+        entityLimit = 9999;
+        canNaturalSpawn = true;
+        self = this;
+    }
+
+    private void Start()
+    {
+        GameManager.OnWorldRounding += RefreshPositions;
+    }
 
     public void UpdateEntities(GameObject[] loadedChunks)
     {
@@ -21,7 +28,7 @@ public class EntitiesManager : MonoBehaviour {
 
         for (int i = 0; i < loadedEntities.Length; i++)
         {
-            Transform child = loadedEntities[i].target.gameObject.transform;
+            Transform child = loadedEntities[i].target.transform;
             bool makeActive = false;
 
             foreach (GameObject loadedChunk in loadedChunks)
@@ -33,19 +40,39 @@ public class EntitiesManager : MonoBehaviour {
             }
 
             if (loadedChunks.Length > 0)
-                if (child.position.x < 0 || child.position.x > GameManager.gameManagerReference.WorldWidth * 16 || child.position.y < 0f)
+                if (child.position.y < 0f)
                 {
                     Destroy(child.gameObject);
                 }
 
             child.gameObject.SetActive(makeActive);
 
-            if(!makeActive)
-            if (loadedEntities[i].canDespawn)
-            {
+            if (!makeActive)
+                if (loadedEntities[i].canDespawn)
+                {
                     Destroy(child.gameObject);
-            }
+                }
         }
 
+        currentEntities = 0;
+        entityLimit = MenuController.menuController.chunksOnEachSide * 10;
+        foreach (Transform child in transform)
+        {
+            if (child.gameObject.activeSelf)
+            {
+                currentEntities++;
+            }
+        }
+        canNaturalSpawn = currentEntities < entityLimit;
+    }
+
+    public void RefreshPositions(int a)
+    {
+        EntityUnloader[] loadedEntities = transform.GetComponentsInChildren<EntityUnloader>(true);
+
+        for (int i = 0; i < loadedEntities.Length; i++)
+        {
+            loadedEntities[i].target.transform.position += new Vector3(a * GameManager.gameManagerReference.WorldWidth * 16, 0);
+        }
     }
 }

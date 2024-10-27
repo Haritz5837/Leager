@@ -5,7 +5,9 @@ using UnityEngine;
 public class WorkItemController : MonoBehaviour {
 
     [SerializeField] public LayerMask tilesMasks;
+    [SerializeField] public LayerMask entitiesMasks;
     [SerializeField] GameObject CraftMenu;
+    [SerializeField] GameObject AdvTechCraftMenu;
     [SerializeField] public Sprite[] spritesRenders;
     [SerializeField] public bool[] canInteract;
     GameObject workIcon;
@@ -22,15 +24,13 @@ public class WorkItemController : MonoBehaviour {
             Vector3Int mousePos = Vector3Int.FloorToInt((Vector2)GameManager.gameManagerReference.mouseCurrentPosition + Vector2.one * 0.5f);
             int idx = mousePos.x * GameManager.gameManagerReference.WorldHeight + mousePos.y;
             GameObject tile = GameManager.gameManagerReference.GetTileObjectAt(idx);
+            int tileSelected = GameManager.gameManagerReference.GetTileAt(idx);
 
             workIcon.GetComponent<SpriteRenderer>().sprite = GameManager.gameManagerReference.tiles[0];
 
             if (tile != null)
                 if (!GameManager.gameManagerReference.doingAnAction)
                 {
-                    ChunkController chunkController = tile.transform.parent.GetComponent<ChunkController>();
-                    int tileSelected = GameManager.gameManagerReference.GetTileAt(idx);
-
                     if (canInteract[tileSelected] == true)
                     {
                         workIcon.GetComponent<SpriteRenderer>().sprite = spritesRenders[tileSelected];
@@ -44,9 +44,11 @@ public class WorkItemController : MonoBehaviour {
                 {
                     if (GInput.GetMouseButton(0))
                     {
-                        tile.transform.parent.GetComponent<ChunkController>().ClickedTile(tile);
+                        Vector4 tileSize = GameManager.gameManagerReference.tileSize[StackBar.stackBarController.currentItem];
+                        Vector3 offset = new Vector3(0.5f * (tileSize.x - 1) - tileSize.z, 0.5f * (tileSize.y - 1) - tileSize.w);
 
-                        Debug.DrawRay(GameManager.gameManagerReference.player.transform.position, GameManager.gameManagerReference.mouseCurrentPosition - GameManager.gameManagerReference.player.transform.position, Color.blue);
+                        if (!GameManager.gameManagerReference.building || !Physics2D.OverlapBox(tile.transform.position + offset, tileSize, 0, entitiesMasks))
+                            tile.transform.parent.GetComponent<ChunkController>().ClickedTile(tile);
                     }
                 }
         }
@@ -56,15 +58,15 @@ public class WorkItemController : MonoBehaviour {
     {
         if (tile == 15)
         {
-            tileObj.transform.GetChild(0).GetComponent<Box>().ToggleItems();
+            tileObj.transform.GetComponentInChildren<Box>().ToggleItems();
         }
 
 
         if (tile == 16)
         {
-            if (GameObject.Find("CraftMenu") == null && TechManager.techTree.fullyUnlockedItems.Count > 0)
+            if (MenuController.menuController.uiMenus.Find("CraftMenu") == null /*&& TechManager.techTree.fullyUnlockedItems.Count > 0*/)
             {
-                GameObject a = Instantiate(CraftMenu, GameObject.Find("UI Menus").transform);
+                GameObject a = Instantiate(CraftMenu, MenuController.menuController.uiMenus);
                 a.name = "CraftMenu";
                 a.GetComponent<CraftMenuController>().InvokeMenu(tileObj.transform);
             }
@@ -74,13 +76,32 @@ public class WorkItemController : MonoBehaviour {
         {
             if (GameManager.gameManagerReference.InGame)
             {
-                MenuController.menuController.PlanetMenuDeploy(tileObj.transform.GetChild(0).GetComponent<ResourceLauncher>());
+                MenuController.menuController.PlanetMenuDeploy(tileObj.transform.GetComponentInChildren<ResourceLauncher>());
             }
         }
 
         if (tile == 102)
         {
-            tileObj.transform.GetChild(0).GetComponent<Box>().ToggleItems();
+            tileObj.transform.GetComponentInChildren<Box>().ToggleItems();
+        }
+
+        if (tile == 125)
+        {
+            if(StackBar.stackBarController.currentItem == 30)
+            {
+                tileObj.transform.GetComponentInChildren<EnergyGenerator>().shock = true;
+                StackBar.LoseItem();
+            }
+        }
+
+        if (tile == 130)
+        {
+            if (MenuController.menuController.uiMenus.Find("AdvTechCraftMenu") == null /*&& TechManager.techTree.fullyUnlockedItems.Count > 0*/)
+            {
+                GameObject a = Instantiate(AdvTechCraftMenu, MenuController.menuController.uiMenus);
+                a.name = "AdvTechCraftMenu";
+                a.GetComponent<CraftMenuController>().InvokeMenu(tileObj.transform);
+            }
         }
     }
 }

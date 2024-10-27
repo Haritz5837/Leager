@@ -49,12 +49,13 @@ public class LightControllerCurrent : MonoBehaviour
 
     void Update()
     {
+        previousPosition = transform.position;
         if (!renderizingLight && !renderized)
         {
             Vector2 globalPosition = Vector2Int.RoundToInt(Camera.main.transform.position);
-            transform.position = globalPosition - Vector2.one * 0.5f;
+            transform.position = globalPosition + new Vector2(0.5f, 0.5f);
 
-            if (transform.position != previousPosition)
+            if (transform.position != previousPosition || GameManager.gameManagerReference.frameTimer % 30 == 0)
             {
                 AddRenderQueue(globalPosition);
                 transform.position = previousPosition;
@@ -70,10 +71,9 @@ public class LightControllerCurrent : MonoBehaviour
         else if (renderized)
         {
             transform.position = renderizedTexturePosition;
+            previousPosition = transform.position;
             RenderizeTexture();
         }
-
-        previousPosition = transform.position;
     }
 
     public void AddRenderQueue(Vector2 renderPosition)
@@ -84,13 +84,14 @@ public class LightControllerCurrent : MonoBehaviour
 
     public void DrawLights()
     {
-        for(int i = 0; i < temp1.Count; i++)
+        renderLights = new Dictionary<Vector2, float>(temp1.Count);
+        for (int i = 0; i < temp1.Count; i++)
         {
             renderLights.Add(temp1[i], temp2[i]);
         }
 
         lightEcoTexture = new EcoTexture(lightDist, lightDist);
-        lightEcoTexture.FillWith(Color.black);
+        lightEcoTexture.Alpha1();
 
         int index = 0;
 
@@ -177,7 +178,7 @@ public class LightControllerCurrent : MonoBehaviour
 
 
         UpdateLights(lightPosition);
-        renderizedTexturePosition = lightPosition;
+        renderizedTexturePosition = lightPosition + (Vector3)Vector2.one * 0.5f;
 
         ThreadStart lightDrawRef = new ThreadStart(DrawLights);
         Thread lightRender = new Thread(lightDrawRef);
@@ -195,7 +196,7 @@ public class LightControllerCurrent : MonoBehaviour
         {
             lightTexture = lightEcoTexture.Export(FilterMode.Trilinear);
         }
-        Sprite illuminationMap = Sprite.Create(lightTexture, new Rect(0.0f, 0.0f, lightTexture.width, lightTexture.height), new Vector2(0.5f, 0.5f), 1);
+        Sprite illuminationMap = Sprite.Create(lightTexture, new Rect(0.0f, 0.0f, lightTexture.width, lightTexture.height), new Vector2(0.5f, 0.5f), 1, 0, SpriteMeshType.FullRect);
         GetComponent<SpriteRenderer>().sprite = illuminationMap;
         renderized = false;
     }
@@ -203,14 +204,12 @@ public class LightControllerCurrent : MonoBehaviour
     private void UpdateLights(Vector2 lightPosition)
     {
         loadedChunks = GameManager.gameManagerReference.LoadedChunks.ToArray();
-        renderLights = new Dictionary<Vector2, float>(lightDist*lightDist*2);
         temp1 = new List<Vector2>();
         temp2 = new List<float>();
 
         if (loadedChunks.Length > 0)
         {
             List<GameObject> gameChunksToRead = new List<GameObject>();
-            List<int> relative = new List<int>();
             int playerChunk = (int)Mathf.Floor(GameManager.gameManagerReference.player.transform.position.x / 16f);
 
             for (int i = playerChunk - MenuController.menuController.chunksOnEachSide; i < playerChunk + MenuController.menuController.chunksOnEachSide; i++)
@@ -226,8 +225,6 @@ public class LightControllerCurrent : MonoBehaviour
                 }
 
                 gameChunksToRead.Add(GameManager.gameManagerReference.chunkContainer.transform.GetChild(chunkToLoad).gameObject);
-                //Debug.LogError(i * 16);
-                relative.Add(i * 16);
             }
 
             int e = 0;
@@ -239,17 +236,16 @@ public class LightControllerCurrent : MonoBehaviour
             foreach (GameObject loadedChunk in gameChunksToRead)
             {
                 ChunkController chunkController = loadedChunk.GetComponent<ChunkController>();
-                Vector2 chunkPosition = Vector2.right * chunkController.orgX;
                 int tileX = 0;
                 int tileY = 0;
 
                 if (!chunkController.loading)
-                    if (chunkController.orgX + 16 > transform.position.x - (lightDist + lightRadius * 2) && chunkController.orgX < transform.position.x + (lightDist + lightRadius * 2))
+                    if (chunkController.currentX + 16 > transform.position.x - (lightDist + lightRadius * 2) && chunkController.currentX < transform.position.x + (lightDist + lightRadius * 2))
                         for (int i = 0; i < chunkController.LightMap.Length; i++)
                         {
                             if (chunkController.LightMap[i] > 0)
                             {
-                                Vector2 thePosition = new Vector2(tileX + chunkController.orgX, tileY);
+                                Vector2 thePosition = new Vector2(tileX + chunkController.currentX, tileY);
 
                                 if (ManagingFunctions.InsideRanges(thePosition, min, max))
                                 {
@@ -318,12 +314,20 @@ public class EcoTexture
 
     public void FillWith(Color color)
     {
-        for(int i = 0; i < width * height; i++)
+        for (int i = 0; i < width * height; i++)
         {
             r[i] = color.r;
             g[i] = color.g;
             b[i] = color.b;
             a[i] = color.a;
+        }
+    }
+
+    public void Alpha1()
+    {
+        for (int i = 0; i < width * height; i++)
+        {
+            a[i] = 1;
         }
     }
 

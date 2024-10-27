@@ -6,25 +6,20 @@ public class CameraController : MonoBehaviour {
 
     [SerializeField] public GameObject focus;
     [SerializeField] float delay = 0f;
+    public bool lerp = false;
     public bool transparentSkybox = false;
     public bool supportsBackgrounds = false;
     public string currentBackground = "";
-
-    Vector2 actualCameraPos = new Vector2();
-    Vector2 nextCameraPos = new Vector2();
+    public Transform mainStuff;
 
     void Start()
     {
-        actualCameraPos = new Vector2(transform.position.x, transform.position.y);
-        Screen.SetResolution ((int)Screen.width, (int)Screen.height, true);
+        Screen.SetResolution(Screen.width, Screen.height, Screen.fullScreen);
     }
     void Update()
     {
         if (focus != null)
         {
-            nextCameraPos = new Vector2(focus.transform.position.x, focus.transform.position.y);
-            //Vector2 camPosition = Vector2.Lerp(actualCameraPos, nextCameraPos, delay);
-            //camPosition.x = nextCameraPos.x;
             if (!transparentSkybox)
             {
                 Color color = GameManager.gameManagerReference.daytimeUpdatedSkyboxColor;
@@ -35,36 +30,63 @@ public class CameraController : MonoBehaviour {
             {
                 GetComponent<Camera>().backgroundColor = GameManager.gameManagerReference.daytimeUpdatedSkyboxColor;
             }
-            transform.position = new Vector3(nextCameraPos.x, nextCameraPos.y, -10f);
-            actualCameraPos = transform.position;
+
+            if (!lerp)
+            {
+                transform.position = new Vector3(focus.transform.position.x, focus.transform.position.y, -10f);
+            }
+            else
+            {
+                transform.position = Vector3.Lerp(transform.position, new Vector3(focus.transform.position.x, focus.transform.position.y, -10f), Time.deltaTime * 10);
+
+                if (Vector2.Distance(transform.position, focus.transform.position) < 0.05f)
+                {
+                    lerp = false;
+                }
+            }
         }
         else
         {
-            focus = GameObject.Find("Lecter");
+            focus = GameManager.gameManagerReference.player.gameObject;
 
             focus.GetComponent<PlayerController>().onControl = true;
             MenuController.menuController.UIActive = true;
+            lerp = true;
         }
 
         if (supportsBackgrounds)
         {
             SpriteRenderer[] backgrounds = GetComponentsInChildren<SpriteRenderer>();
+            int i = 0;
 
             foreach(SpriteRenderer background in backgrounds)
             {
-                Color color = background.color;
-
-                if(background.gameObject.name.Contains(currentBackground))
+                if (background.gameObject.name.Contains("#"))
                 {
-                    color.a = Mathf.Clamp01(color.a + Time.deltaTime);
-                }
-                else
-                {
-                    color.a = Mathf.Clamp01(color.a - Time.deltaTime);
-                }
+                    Color color = background.color;
 
-                background.enabled = color.a != 0f;
-                background.color = color;
+                    if (i > 0)
+                    {
+                        background.size = Vector2.one * LightController.lightController.lightDist;
+                    }
+                    else
+                    {
+                        background.size = new Vector2(LightController.lightController.lightDist, 5);
+                    }
+
+                    if (background.gameObject.name.Contains(currentBackground))
+                    {
+                        color.a = Mathf.Clamp01(color.a + Time.deltaTime);
+                    }
+                    else
+                    {
+                        color.a = Mathf.Clamp01(color.a - Time.deltaTime);
+                    }
+
+                    background.enabled = color.a != 0f;
+                    background.color = color;
+                    i++;
+                }
             }
         }
     }

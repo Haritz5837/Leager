@@ -89,6 +89,18 @@ public class NetworkController : MonoBehaviour
             blocksToReplace.Add(new string[] { Server.hostUsername, "chunkReplace", chunkIdx.ToString(), idx.ToString(), tile.ToString() });
         }
     }
+    
+    public void UpdateBackgroundBlock(int chunkIdx, int idx, int tile)
+    {
+        if (GameManager.gameManagerReference.isNetworkClient)
+        {
+            Client.Write(string.Join(";", new string[] { "chunkBgReplace", chunkIdx.ToString(), idx.ToString(), tile.ToString() + "/" }));
+        }
+        else if (GameManager.gameManagerReference.isNetworkHost)
+        {
+            blocksToReplace.Add(new string[] { Server.hostUsername, "chunkBgReplace", chunkIdx.ToString(), idx.ToString(), tile.ToString() });
+        }
+    }
 
     public void UpdateProperties(int chunkIdx, int idx, string properties)
     {
@@ -437,7 +449,7 @@ public class NetworkController : MonoBehaviour
                                 {
                                     for (int i = 0; i < amount; i++)
                                     {
-                                        if (!StackBar.AddItem(item)) itemReturn++;
+                                        if (!StackBar.AddItemInv(item)) itemReturn++;
                                     }
 
                                     DropCallback(item, itemReturn, dropName);
@@ -479,14 +491,21 @@ public class NetworkController : MonoBehaviour
 
     public static string GetLocalIP()
     {
-        string localIP;
-        using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+        try
         {
-            socket.Connect("8.8.8.8", 65530);
-            IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-            localIP = endPoint.Address.ToString();
+            string localIP;
+            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+            {
+                socket.Connect("8.8.8.8", 65530);
+                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
+                localIP = endPoint.Address.ToString();
+            }
+            return localIP;
         }
-        return localIP;
+        catch
+        {
+            return "";
+        }
     }
 }
 
@@ -540,6 +559,7 @@ public class Server
             string message = Encoding.ASCII.GetString(data, 0, bytesRead);
 
             //TODO Check if username in use, if true then refuse the connect, else let client connect
+            Debug.Log("client user:" + message);
             List<string> usernamesInUse = new List<string> { hostUsername, "null", "Lecter" };
             foreach (TcpUser c in clients)
                 usernamesInUse.Add(c.username);
@@ -547,13 +567,17 @@ public class Server
             if (usernamesInUse.Contains(message))
             {
                 client.GetStream().Close();
+                Debug.Log("rejected client for repeated username");
                 return "null";
             }
+
+            Debug.Log("sending client version" + Application.version);
             Write(client, Application.version);
+
 
             Debug.Log("get ready");
             string a = Read(client, 1024);
-            Debug.Log(a);
+            Debug.Log("client response" + a);
             if (a != "d")
             {
                 Debug.Log("got here so far");
@@ -720,21 +744,19 @@ public class Client
     static IPAddress serverIpAddress;
     public static TcpClient client;
     public static NetworkStream stream;
+    public static Difficulty difficulty = Difficulty.normal;
 
     public static int[] worldProportionsLoad;
     public static int[] worldMapLoad;
+    public static int[] backgroundMapLoad;
     public static string[] worldMapPropLoad;
     public static string[] worldBiomesLoad;
 
     public static bool Main(string ip, int portParam, string message)
     {
+        int serverPort = portParam;
 
-        serverIpAddress = IPAddress.Parse(ip); // replace with the IP address of the server
-        int serverPort = portParam; // replace with the port number used by the server
-
-        Debug.Log("check");
-
-        client = new TcpClient(serverIpAddress.ToString(), serverPort);
+        client = new TcpClient(ip, serverPort);
         Debug.Log("check");
         stream = client.GetStream();
         Debug.Log("check");
@@ -745,6 +767,8 @@ public class Client
 
         Debug.Log("getting version");
         string version = Read(1024);
+        Debug.Log("client side version: " + Application.version + "server version:" + version + "thats it");
+        Debug.Log(version);
         if (version != Application.version)
         {
             Write("d");
@@ -792,12 +816,12 @@ public class Client
     public static void GetMap()
     {
         string map = "";
+        string bgMap = "";
         string mapprop = "";
 
         for (int i = 0; i < worldProportionsLoad[1]; i++)
         {
             string ab = Read(8192);
-            Debug.Log("buffer" + i + ";;" + ab);
             int buffer = System.Convert.ToInt32(ab);
             Write("a weno");
 
@@ -809,7 +833,6 @@ public class Client
             } while (mapGrid[mapGrid.Length - 1] != 'd');
             mapGrid = mapGrid.Remove(mapGrid.Length - 1);
 
-            Debug.Log("map" + i + ";;" + mapGrid);
             if (map == "")
                 map = mapGrid;
             else
@@ -819,7 +842,6 @@ public class Client
 
             //tileproperties
             string ac = Read(8192);
-            Debug.Log("buffer" + i + ";;" + ac);
             int buffer2 = System.Convert.ToInt32(ac);
             Write("a weno");
 
@@ -830,15 +852,33 @@ public class Client
                 mapProp += Read(buffer2);
             } while (mapProp.Length < buffer2);
 
-            Debug.Log("mapprop" + i + ";;" + mapProp);
             if (mapprop == "")
                 mapprop = mapProp;
             else
                 mapprop = string.Join("$", new string[] { mapprop, mapProp });
             Write("a weno");
+
+            string ad = Read(8192);
+            int buffer3 = System.Convert.ToInt32(ad);
+            Write("a weno");
+
+
+            string bgMapGrid = "";
+            do
+            {
+                bgMapGrid += Read(buffer3);
+            } while (bgMapGrid[bgMapGrid.Length - 1] != 'd');
+            bgMapGrid = bgMapGrid.Remove(bgMapGrid.Length - 1);
+
+            if (bgMap == "")
+                bgMap = bgMapGrid;
+            else
+                bgMap = string.Join(";", new string[] { bgMap, bgMapGrid });
+            Write("a weno");
         }
 
         worldMapLoad = ManagingFunctions.ConvertStringToIntArray(map.Split(';'));
+        backgroundMapLoad = ManagingFunctions.ConvertStringToIntArray(bgMap.Split(';'));
         worldMapPropLoad = mapprop.Split('$');
         //leaves with server write turn
     }
@@ -858,6 +898,7 @@ public class Client
         serverIpAddress = null;
         worldProportionsLoad = null;
         worldMapLoad = null;
+        backgroundMapLoad = null;
         worldBiomesLoad = null;
     }
 }

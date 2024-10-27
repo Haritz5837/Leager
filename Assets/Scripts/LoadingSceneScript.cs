@@ -10,6 +10,7 @@ public class LoadingSceneScript : MonoBehaviour
     [SerializeField] GameObject loadingBarBg;
     [SerializeField] GameObject loadingTxt;
     [SerializeField] RectTransform canvas;
+    [SerializeField] RectTransform load;
     [SerializeField] string[] craftingT1DefaultConfig;
     [SerializeField] string[] craftingT2DefaultConfig;
     [SerializeField] string[] craftingT3DefaultConfig;
@@ -21,6 +22,7 @@ public class LoadingSceneScript : MonoBehaviour
         if (reloadDefault == true)
         {
             craftingT1DefaultConfig = DataSaver.ReadTxt(Application.dataPath + @"/packages/LeagerStudios/crafts.txt");
+            craftingT2DefaultConfig = DataSaver.ReadTxt(Application.dataPath + @"/packages/LeagerStudios/craftsAdvTech.txt");
 
             reloadDefault = false;
         }
@@ -31,6 +33,7 @@ public class LoadingSceneScript : MonoBehaviour
         isLoading = true;
         Debug.Log("===STARTED INITIAL LOADING===");
 
+        DontDestroyOnLoad(canvas.gameObject);
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
         QualitySettings.vSyncCount = 1;
@@ -48,11 +51,16 @@ public class LoadingSceneScript : MonoBehaviour
         {
             DataSaver.CreateTxt(Application.persistentDataPath + @"/packages/LeagerStudios/crafts.txt", new string[] { });
         }
+        if (!DataSaver.CheckIfFileExists(Application.persistentDataPath + @"/packages/LeagerStudios/craftsAdvTech.txt"))
+        {
+            DataSaver.CreateTxt(Application.persistentDataPath + @"/packages/LeagerStudios/craftsAdvTech.txt", new string[] { });
+        }
 
         {
             if (Application.isEditor)
             {
                 DataSaver.CopyPasteTxt(Application.dataPath + @"/packages/LeagerStudios/crafts.txt", Application.persistentDataPath + @"/packages/LeagerStudios/crafts.txt");
+                DataSaver.CopyPasteTxt(Application.dataPath + @"/packages/LeagerStudios/craftsAdvTech.txt", Application.persistentDataPath + @"/packages/LeagerStudios/craftsAdvTech.txt");
             }
             else if ((Application.platform == RuntimePlatform.WindowsPlayer || Application.platform == RuntimePlatform.OSXPlayer) && !Debug.isDebugBuild)
             {
@@ -79,12 +87,23 @@ public class LoadingSceneScript : MonoBehaviour
                     return;
                 }
 
+                if (DataSaver.CheckIfFileExists(Application.dataPath + @"/packages/LeagerStudios/craftsAdvTech.txt"))
+                {
+                    DataSaver.CopyPasteTxt(Application.dataPath + @"/packages/LeagerStudios/craftsAdvTech.txt", Application.persistentDataPath + @"/packages/LeagerStudios/craftsAdvTech.txt");
+                }
+                else
+                {
+                    loadingTxt.GetComponent<Text>().text = Application.dataPath + @"/packages/LeagerStudios/craftsAdvTech.txt is missing...";
+                    StartCoroutine(Freeze());
+                    return;
+                }
 
             }
             else
             {
 
                 DataSaver.ModifyTxt(Application.persistentDataPath + @"/packages/LeagerStudios/crafts.txt", craftingT1DefaultConfig);
+                DataSaver.ModifyTxt(Application.persistentDataPath + @"/packages/LeagerStudios/craftsAdvTech.txt", craftingT2DefaultConfig);
             }
             StartCoroutine(TasksBeforeStart(DataSaver.version));
         }
@@ -123,48 +142,81 @@ public class LoadingSceneScript : MonoBehaviour
 
         yield return new WaitForSeconds(1f);
 
-        string[] randomMessage = { "The Loading Time is Long, Isn't It?", "Loading, loading, loading...", "Waiting for the Loadingbar to Reach the End", "Writing stupid Phrases", "Undoing Stuff", "We are on " + Application.version + ", Right?", "You Don't Know How to Play? Read the Instructions.", ":)", "JifteDev is Life", "Go to Eat a Waffle While this Loads", "Creating the Creator", "Waiting for a Good Idea", "Go to The Sur and Craft a Core", "Get Ready to Play", "Programming Useless Mechanics", "Miler is slow", "[something has to be put in here]", "12 + 1, Everything matches.", "Enemies are not your allies", "Doors don't close unless you close them.", "The Krotek is Behind you", "Exploring the entire world", "añañañaño", "Changing from LoadScene.unity to MainMenu.unity", "Nobody talks about how good waffles are", "Razor is taking a Rocket to Space", "Duals... AHHHHH", "WOW! LOOK! Is that a fortress? Oh... no, its not.", ":(", "miler sucks", "Just wait...", "DROP! WAW WAWAWAWAWAWA", "Some load messages are just... Load messages, I guess.", "LoadingSceneScript.cs" };
+        string[] randomMessage = {
+            "The Loading Time isn't Long, is It?",
+            "Loading, loading, loading...",
+            "Waiting for the Loadingbar to Reach the End",
+            "Writing stupid Phrases",
+            "Undoing Stuff",
+            "We are on " + Application.version + ", Right?",
+            ":)",
+            "Go to Eat a Waffle While this Loads",
+            "Creating the Creator",
+            "Go to The South and Craft a Core",
+            "Get Ready to Play",
+            "Programming Useless Mechanics",
+            "Programming Useful Mechanics Nobody will Use",
+            "[something has to be put in here]",
+            "12 + 1, Everything matches.",
+            "Enemies are not your allies",
+            "Doors don't close unless you close them.",
+            "The Krotek is Behind you",
+            "Exploring the entire world",
+            "añañañaño",
+            "Changing from LoadScene.unity to MainMenu.unity",
+            "Nodes... AHHHHH",
+            "WOW! LOOK! Is that a fortress? Oh... no, its not.",
+            ":(",
+            "Just wait...",
+            "DROP! WAW WAWAWAWAWAWA",
+            "Some load messages are just... Load messages, I guess.",
+            "LoadingSceneScript.cs is not scripting",
+            "Hey! If the game runs slow, isn't my fault ok?",
+            "You should try a DavidDEV game... wait... he doesn't have any...",
+            "Testing gamer skills",
+            "These will be the best graphics you'll ever see",
+            "Fun Fact: There aren't Easter Eggs"
+        };
 
 
         loadingTxt.GetComponent<Text>().text = randomMessage[Random.Range(0, randomMessage.Length)];
         Debug.Log("Load Text:" + loadingTxt.GetComponent<Text>().text);
 
-        for (int i = 0; i < 10; i++)
+        Scene scene = SceneManager.GetActiveScene();
+        AsyncOperation asyncOperation = SceneManager.LoadSceneAsync("MainMenu", LoadSceneMode.Additive);
+
+        while(asyncOperation.progress < 1f)
         {
-            for (int i2 = 0; i2 < 10; i2++)
-            {
-                loadingBar.GetComponent<RectTransform>().localScale = new Vector2(loadingBar.GetComponent<RectTransform>().localScale.x + 0.01f, 1f);
-                yield return new WaitForSeconds(0.016f);
-            }
+            loadingBar.GetComponent<RectTransform>().localScale = new Vector3(Mathf.MoveTowards(loadingBar.GetComponent<RectTransform>().localScale.z, asyncOperation.progress / 2f, 0.6f * Time.deltaTime), 1f, 1f);
+            yield return new WaitForEndOfFrame();
         }
 
-        yield return new WaitForSeconds(.5f);
+        asyncOperation = SceneManager.UnloadSceneAsync(scene);
 
-        StartCoroutine(ExitLoadMenu());
-    }
+        while (asyncOperation.progress < 1f || loadingBar.GetComponent<RectTransform>().localScale.x < 1f)
+        {
+            loadingBar.GetComponent<RectTransform>().localScale = new Vector3(Mathf.MoveTowards(loadingBar.GetComponent<RectTransform>().localScale.z, asyncOperation.progress, 0.6f * Time.deltaTime), 1f, 1f);
+            yield return new WaitForEndOfFrame();
+        }
 
-    IEnumerator ExitLoadMenu()
-    {
+
+
+        yield return new WaitForSeconds(.1f);
+        Debug.Log("===ENDED INITIAL LOADING===");
+
         Color color = loadingBarBg.GetComponent<Image>().color;
         color.a = 0f;
         loadingBarBg.GetComponent<Image>().color = color;
 
-        for (int i = 0; i < 50; i++)
+        float speed = 0;
+        while (load.anchoredPosition.y > -50)
         {
-            color = loadingBar.GetComponent<Image>().color;
-            color.a -= 0.02f;
-            loadingBar.GetComponent<Image>().color = color;
-
-            color = loadingTxt.GetComponent<Text>().color;
-            color.a -= 0.02f;
-            loadingTxt.GetComponent<Text>().color = color;
+            speed -= 2 * Time.deltaTime;
+            load.anchoredPosition = load.anchoredPosition + Vector2.up * speed;
             yield return new WaitForSeconds(0.016f);
         }
 
-        Debug.Log("===ENDED INITIAL LOADING===");
-
         isLoading = false;
-
-        SceneManager.LoadScene("MainMenu");
+        Destroy(canvas.gameObject);
     }
 }
